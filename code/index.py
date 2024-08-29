@@ -3,7 +3,8 @@ from tkinter import messagebox
 from tkinter.filedialog import askopenfilenames, asksaveasfilename
 import tabula as tb
 import pandas as pd
-import subprocess
+from unidecode import unidecode
+import string
 import os
 
 window = Tk()
@@ -23,15 +24,9 @@ class Arquivos:
             if self.caminhos == (''):
                 raise ValueError('Operação cancelada')
 
-            label['text'] = ''
-            for item in self.caminhos:
-                ultima_barra = item.rfind('/')
+            label['text'] = self.validar_entrada()
 
-                if self.__tipo(item) != 'pdf':
-                    raise Exception(
-                        f'Formato inválido do arquivo: {item[ultima_barra+1:]}')
-                
-                label['text'] = label['text'] + '\n' + item[ultima_barra+1:]
+            return self.caminhos
 
         except ValueError:
             messagebox.showerror(title='Aviso', message= 'Operação cancelada')
@@ -47,14 +42,35 @@ class Arquivos:
 
         os.startfile(file+'.xlsx')
 
-    def __tipo(self, item):
-        return item[ len(item) -3 :]
+    def validar_entrada(self):
+        text_caminhos = ''
+        for caminho in self.caminhos:
+            if any(c not in string.ascii_letters for c in caminho):
+                caminho = self.formato_ascii(caminho)
+
+            ultima_barra = caminho.rfind('/')
+            self.__tipo(caminho)
+            text_caminhos = text_caminhos + '\n' + caminho[ultima_barra+1:]
+
+        return text_caminhos
+
+    def __tipo(self, caminho):
+        if caminho[len(caminho) -3 :] != 'pdf':
+            ultima_barra = caminho.rfind('/')
+            raise Exception(
+                f'Formato inválido do arquivo: {caminho[ultima_barra+1:]}')
+
+    def formato_ascii(self, caminho):
+        caminho_uni = unidecode(caminho)
+        os.rename(caminho, caminho_uni)
+        return caminho_uni
 
 class Competencia:
     def __init__(self):
         self.nome_emp = []
         self.cnpj = []
-        self.data_hora = []
+        self.data = []
+        self.hora = []
 
     def to_string(self):
         return self.titulo
@@ -67,7 +83,7 @@ class Des(Competencia):
 
     def add_linha(self, arquivo):
         self.tabela = tb.read_pdf(arquivo, pages= 1, stream= True,\
-                        relative_area=True, area= [10,0,59,68])
+                        relative_area=True, area= [10,0,59,68])[0]
         ##Nome Emp
         self.nome_emp.append(self.tabela.iloc[1,0]\
             .replace('Nome/Razão Social: ',''))
@@ -81,32 +97,78 @@ class Des(Competencia):
                     .replace(' No Protocolo:',''))
 
         ##Data e Hora
-        self.data_hora.append(self.tabela.iloc[4,0]\
-            .replace('Data/Hora de Entrega: ','')\
-                .replace(' Regime de Tributação:',''))
+        col_dthr = self.tabela.iloc[4,0].replace('Data/Hora de Entrega: ','')\
+                        .replace(' Regime de Tributação:','')
+
+        self.data.append(col_dthr[:10])
+
+        self.hora.append(col_dthr[10:])
 
         ##Serviços declarados.
         self.servicos.append(self.tabela.iloc[15,0]\
-            .replace('Total de Serviços Declarados: ',''))
+            .replace('Total de Serviços Declarados: ','')\
+                .replace('Base de Cálculo S/ Ret',''))
 
     def gerar_df(self):
         return pd.DataFrame({
             'Nome': self.nome_emp, 
             'CNPJ': self.cnpj, 
             'Referência': self.referencia, 
-            'Data e Hora:': self.data_hora,
-            'Serv. Tomados': self.servicos
+            'Data:': self.data,
+            'Hora:': self.hora,
+            'Serviços Tomados': self.servicos
             })
 
 class Reinf(Competencia):
     def __init__(self):
         super().__init__()
-        self.titulo = 'Inter'
+        self.num_dom = []
+        self.situacao = []
+
+    def add_linha(self, arquivo):
+        arquivo_lido = tb.read_pdf(arquivo, pages=1, stream=True,\
+                        relative_area=True ,area=[10,0,100,100])[0]
+        
+        tabela = arquivo_lido.loc[
+            arquivo_lido['Evento'] == 'R-2099 - Fechamento dos Eventos Periódicos'
+            ]
+
+        prim_linha = tabela.iloc[0,0]
+
+        ##Num Domínio
+        self.num_dom.append(prim_linha[:prim_linha.find('-')-1])
+
+        ##Nome empresa
+        self.nome_emp.append(prim_linha[prim_linha.find('-')+2:])
+
+        ##CNPJ
+        self.cnpj.append(tabela.iloc[0,1][:18])
+
+        ##Situação
+        self.situacao.append(tabela.iloc[0,4])
+
+        ##Data e Hora
+        col_dthr = tabela.iloc[0,6][:18]
+
+        self.data.append(col_dthr[:10])
+
+        self.hora.append(col_dthr[12:])
+
+    def gerar_df(self):
+        return pd.DataFrame({
+            'Num. Domínio': self.num_dom,
+            'Nome': self.nome_emp, 
+            'CNPJ': self.cnpj, 
+            'Situação': self.situacao, 
+            'Data:': self.data,
+            'Hora:': self.hora,
+            })
 
 class App:
     def __init__(self):
         self.window = window
         self.arquivos = Arquivos()
+        self.cam_arquivos = ''
         self.tela()
         self.index()
         window.mainloop()
@@ -137,23 +199,24 @@ class App:
         ###########Arquivo
         Label(self.index, text='Insira aqui o arquivo:',\
             background='lightblue', font=(10))\
-                .place(relx=0.15,rely=0.45)
+                .place(relx=0.15,rely=0.4)
 
         self.nome_arq = ''
         self.arqLabel = Label(self.index)
         self.arqLabel.config(font=("Arial", 8, 'bold italic'))
-        self.arqLabel.place(relx=0.21,rely=0.52,relwidth=0.7, relheight=0.15)
+        self.arqLabel.place(relx=0.21,rely=0.47,relwidth=0.7, relheight=0.2)
         
         Button(self.index, text='Enviar',\
-            command= lambda: self.arquivos.inserir(self.arqLabel))\
-                .place(relx=0.15,rely=0.52,relwidth=0.06,relheight=0.055)
+            command= lambda: self.arquivos.inserir(self.arqLabel),\
+                textvariable= self.cam_arquivos)\
+                .place(relx=0.15,rely=0.47,relwidth=0.06,relheight=0.055)
 
         ###########EFD
         Label(self.index, text='Caso o nome da obrigação assesória não constar no nome do arquivo',\
             background='lightblue', font=("Arial", 12, 'bold italic'))\
                 .place(relx=0.15,rely=0.7)
 
-        Label(self.index, text='Escolha o EFD emissor:',\
+        Label(self.index, text='Escolha a obrigação:',\
             background='lightblue', font=(10))\
                 .place(relx=0.15,rely=0.75)
         
@@ -164,10 +227,10 @@ class App:
         self.declaracaoEntry.set('Escolha aqui')
 
         self.popup = OptionMenu(self.index, self.declaracaoEntry, *self.declaracaoEntryOpt)\
-            .place(relx=0.4,rely=0.75,relwidth=0.2,relheight=0.06)
+            .place(relx=0.375,rely=0.75,relwidth=0.2,relheight=0.06)
         
         #Botão enviar
-        Button(self.index, text='Gerar Extrato',\
+        Button(self.index, text='Gerar Conferencia',\
             command= lambda: self.executar())\
                 .place(relx=0.65,rely=0.8,relwidth=0.25,relheight=0.12)
 
@@ -184,28 +247,28 @@ class App:
         raise Exception('Declaração inválida, favor selecioná-lo')
 
     def executar(self):
-        try:       
-            arquivos =  self.arquivos.get_caminhos()
+        #try:       
+            self.cam_arquivos = self.arquivos.get_caminhos()
 
-            if arquivos == (''):
+            if self.cam_arquivos == (''):
                 raise Exception ('Insira algum arquivo')
 
             declaracao = self.definir_declaracao()
 
-            for arquivo in arquivos:
+            for arquivo in self.cam_arquivos:
                 declaracao.add_linha(arquivo)
 
             arquivo_final = declaracao.gerar_df()
 
             self.arquivos.abrir(arquivo_final)
          
-        except PermissionError:
-            messagebox.showerror(title='Aviso', message= 'Feche o arquivo gerado antes de criar outro')
-        except UnboundLocalError:
-            messagebox.showerror(title='Aviso', message= 'Arquivo não compativel a esse banco')
-        except subprocess.CalledProcessError:
-            messagebox.showerror(title='Aviso', message= "Erro ao extrair a tabela, confira se o banco foi selecionado corretamente. Caso contrário, comunique o desenvolvedor")
-        except Exception as error:
-            messagebox.showerror(title='Aviso', message= error)
+        # except PermissionError:
+        #     messagebox.showerror(title='Aviso', message= 'Feche o arquivo gerado antes de criar outro')
+        # except UnboundLocalError:
+        #     messagebox.showerror(title='Aviso', message= 'Arquivo não compativel a esse banco')
+        # except subprocess.CalledProcessError:
+        #     messagebox.showerror(title='Aviso', message= "Erro ao extrair a tabela, confira se o banco foi selecionado corretamente. Caso contrário, comunique o desenvolvedor")
+        # except Exception as error:
+        #     messagebox.showerror(title='Aviso', message= error)
        
 App()
