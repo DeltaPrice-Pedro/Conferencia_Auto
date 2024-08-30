@@ -145,7 +145,7 @@ class Reinf(Competencia):
         self.cnpj.append(tabela.iloc[0,1][:18])
 
         ##Situação
-        self.situacao.append(tabela.iloc[0,4])
+        self.situacao.append(tabela.iloc[0,4].replace('Sucesso','Enviado'))
 
         ##Data e Hora
         col_dthr = tabela.iloc[0,6][:18]
