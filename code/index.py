@@ -137,7 +137,7 @@ class Writer:
                 self.wb.add_format({'border':3, 'align':'center'}))
 
     def data_confe(self):
-        data = f'{datetime.now().month}/{datetime.now().year}'
+        data = f'{datetime.now().month - 1}/{datetime.now().year}'
         data_format = datetime.strptime(data, '%m/%Y')
         return data_format.strftime("%B/%Y".capitalize())
 
