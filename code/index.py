@@ -7,6 +7,13 @@ from unidecode import unidecode
 import string
 import os
 
+from datetime import *
+from json import loads
+from xlsxwriter import *
+import locale
+
+locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
+
 window = Tk()
 
 class Arquivos:
@@ -33,10 +40,10 @@ class Arquivos:
         except Exception as error:
             messagebox.showerror(title='Aviso', message= error)
 
-    def abrir(self,arquivo_final):
+    def abrir(self, df, titulo):
         file = asksaveasfilename(title='Favor selecionar a pasta onde será salvo', filetypes=((".xlsx","*.xlsx"),))
 
-        arquivo_final.style.hide().to_excel(file+'.xlsx')
+        Writer(df, titulo).gerar_arquivo(file)
 
         messagebox.showinfo(title='Aviso', message='Abrindo o arquivo gerado!')
 
@@ -65,6 +72,75 @@ class Arquivos:
         os.rename(caminho, caminho_uni)
         return caminho_uni
 
+class Writer:
+    def __init__(self, df, titulo):
+        self.df = df
+        self.COL_INDEX = 6
+        self.COL_DATA = self.COL_INDEX + 1
+        self.titulo = titulo
+
+        self.data = loads(df.to_json(orient="table", index=False))
+
+    def gerar_arquivo(self, nome_arq):
+        self.wb = Workbook(nome_arq + '.xlsx')
+        self.ws = self.wb.add_worksheet('Sheet1')
+        self.ws.set_column('A:A', 40)
+        self.ws.set_column('B:B', 20)
+        self.ws.set_column('C:C', 10)
+        self.ws.set_column('D:D', 20)
+        self.ws.set_column('E:E', 15)
+        self.ws.set_column('F:F', 20)
+
+        self.cabecalho()
+        self.table_ref()
+        self.preencher_fields()
+        self.preencher_data()
+
+        self.wb.close()
+
+    def cabecalho(self):
+        self.ws.write(0,0,f'RELATÓRIO DE CONFERÊNCIA {self.titulo}',\
+            self.wb.add_format({'bold': True, 'font_size': 26}))
+
+        self.ws.write(2,0,'Competência',\
+            self.wb.add_format({'bold':True,'align':'right','font_size': 16}))
+        self.ws.write(2,1, self.data_confe())
+
+        self.ws.write(3,0,'Data Entrega',\
+            self.wb.add_format({'bold':True,'align':'right','font_size': 16}))
+        self.ws.write(3,1, datetime.now().strftime("%d/%m/%Y"))
+
+    def table_ref(self):
+        tam_df = len(self.data["data"])+7
+        ref = {
+            'Quant. de empresas:': f'=COUNTA($B8:$B{tam_df})',
+            'Obrigadas:': '=$E2',
+            'Entregues:': f'=COUNTIF($D8:$D{tam_df}, "ENVIADO")',
+            'Não Entregues:': '=$E3 - $E4'
+        }
+        for index, text in enumerate(ref.items()):
+            self.ws.write(index+1,3, text[0],\
+                self.wb.add_format({'bold':True,'border':1,'align':'right'}))
+            
+            self.ws.write(index+1,4, text[1],\
+                self.wb.add_format({'border':1,'align':'center'}))
+
+    def preencher_fields(self):
+        for index, column in enumerate(self.data['schema']['fields']):
+            self.ws.write(self.COL_INDEX, index, column['name'],\
+                self.wb.add_format({'bold':True,'top':2, 'bg_color':'#a7b8ab','underline':True, 'align':'center'}))
+
+    def preencher_data(self):
+        for index, item in enumerate(self.data['data']):
+            for id, valor in enumerate(item.values()):
+                self.ws.write(index+ self.COL_DATA, id, valor,\
+                self.wb.add_format({'border':3, 'align':'center'}))
+
+    def data_confe(self):
+        data = f'{datetime.now().month}/{datetime.now().year}'
+        data_format = datetime.strptime(data, '%m/%Y')
+        return data_format.strftime("%B/%Y".capitalize())
+
 class Competencia:
     def __init__(self):
         self.nome_emp = []
@@ -80,6 +156,7 @@ class Des(Competencia):
         super().__init__()
         self.referencia = []
         self.servicos = []
+        self.titulo = 'DES'
 
     def add_linha(self, arquivo):
         self.tabela = tb.read_pdf(arquivo, pages= 1, stream= True,\
@@ -114,8 +191,8 @@ class Des(Competencia):
             'Nome': self.nome_emp, 
             'CNPJ': self.cnpj, 
             'Referência': self.referencia, 
-            'Data:': self.data,
-            'Hora:': self.hora,
+            'Data Entrega': self.data,
+            'Hora Entrega': self.hora,
             'Serviços Tomados': self.servicos
             })
 
@@ -124,6 +201,7 @@ class Reinf(Competencia):
         super().__init__()
         self.num_dom = []
         self.situacao = []
+        self.titulo = 'EFD REINF'
 
     def add_linha(self, arquivo):
         arquivo_lido = tb.read_pdf(arquivo, pages=1, stream=True,\
@@ -145,7 +223,7 @@ class Reinf(Competencia):
         self.cnpj.append(tabela.iloc[0,1][:18])
 
         ##Situação
-        self.situacao.append(tabela.iloc[0,4].replace('Sucesso','Enviado'))
+        self.situacao.append(tabela.iloc[0,4].replace('Sucesso','ENVIADO'))
 
         ##Data e Hora
         col_dthr = tabela.iloc[0,6][:18]
@@ -160,8 +238,8 @@ class Reinf(Competencia):
             'Nome': self.nome_emp, 
             'CNPJ': self.cnpj, 
             'Situação': self.situacao, 
-            'Data:': self.data,
-            'Hora:': self.hora,
+            'Data Entrega': self.data,
+            'Hora Entrega': self.hora,
             })
 
 class App:
@@ -259,8 +337,8 @@ class App:
                 declaracao.add_linha(arquivo)
 
             arquivo_final = declaracao.gerar_df()
-
-            self.arquivos.abrir(arquivo_final)
+            
+            self.arquivos.abrir(arquivo_final, declaracao.to_string())
          
         # except PermissionError:
         #     messagebox.showerror(title='Aviso', message= 'Feche o arquivo gerado antes de criar outro')
