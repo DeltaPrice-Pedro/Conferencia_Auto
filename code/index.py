@@ -1,6 +1,6 @@
 from tkinter import *
 from tkinter import messagebox
-from tkinter.filedialog import askopenfilenames, asksaveasfilename
+from tkinter.filedialog import askopenfilenames, askopenfilename, asksaveasfilename
 import tabula as tb
 import pandas as pd
 from unidecode import unidecode
@@ -20,18 +20,34 @@ class Arquivos:
     #Cada arquivo possui um banco
     def __init__(self):
         self.caminhos = ('')
+        self.matriz = ''
 
     def get_caminhos(self):
         return self.caminhos
 
-    def inserir(self, label):
+    def inserir_matriz(self, label):
+        try:
+            self.matriz = askopenfilename()
+
+            if self.matriz == '':
+                raise ValueError('Operação cancelada')
+
+            label['text'] = self.validar_entrada([self.matriz])
+
+            return self.matriz
+        except ValueError:
+            messagebox.showerror(title='Aviso', message= 'Operação cancelada')
+        except Exception as error:
+            messagebox.showerror(title='Aviso', message= error)
+
+    def inserir_recibo(self, label):
         try:
             self.caminhos = askopenfilenames()
 
             if self.caminhos == (''):
                 raise ValueError('Operação cancelada')
 
-            label['text'] = self.validar_entrada()
+            label['text'] = self.validar_entrada(self.caminhos)
 
             return self.caminhos
 
@@ -49,9 +65,9 @@ class Arquivos:
 
         os.startfile(file+'.xlsx')
 
-    def validar_entrada(self):
+    def validar_entrada(self, valor):
         text_caminhos = ''
-        for caminho in self.caminhos:
+        for caminho in valor:
             if any(c not in string.ascii_letters for c in caminho):
                 caminho = self.formato_ascii(caminho)
 
@@ -247,6 +263,7 @@ class App:
         self.window = window
         self.arquivos = Arquivos()
         self.cam_arquivos = ''
+        self.cam_matriz = ''
         self.tela()
         self.index()
         window.mainloop()
@@ -263,7 +280,7 @@ class App:
         self.index.place(relx=0.05,rely=0.05,relwidth=0.9,relheight=0.9)
 
         #Titulo
-        Label(self.index, text='Conferência Automática', background='lightblue', font=('arial',30,'bold')).place(relx=0.23,rely=0.25,relheight=0.15)
+        Label(self.index, text='Conferência Automática', background='lightblue', font=('arial',30,'bold')).place(relx=0.23,rely=0.1,relheight=0.15)
 
         #Logo
         # self.logo = PhotoImage(file='Z:\\18 - PROGRAMAS DELTA\\code\\imgs\\deltaprice-hori.png')
@@ -274,8 +291,23 @@ class App:
         #     .place(relx=0.175,rely=0.1,relwidth=0.7,relheight=0.2)
 
         #Labels e Entrys
+        ###########Matriz
+        Label(self.index, text='Insira aqui a Matriz/Referência:',\
+            background='lightblue', font=(10))\
+                .place(relx=0.15,rely=0.25)
+
+        self.nome_Mat = ''
+        self.matLabel = Label(self.index)
+        self.matLabel.config(font=("Arial", 8, 'bold italic'))
+        self.matLabel.place(relx=0.21,rely=0.32,relwidth=0.7, relheight=0.055)
+        
+        Button(self.index, text='Enviar',\
+            command= lambda: self.arquivos.inserir_matriz(self.matLabel),\
+                textvariable= self.cam_matriz)\
+                .place(relx=0.15,rely=0.32,relwidth=0.06,relheight=0.055)
+
         ###########Arquivo
-        Label(self.index, text='Insira aqui o arquivo:',\
+        Label(self.index, text='Insira aqui os Recibos:',\
             background='lightblue', font=(10))\
                 .place(relx=0.15,rely=0.4)
 
@@ -285,7 +317,7 @@ class App:
         self.arqLabel.place(relx=0.21,rely=0.47,relwidth=0.7, relheight=0.2)
         
         Button(self.index, text='Enviar',\
-            command= lambda: self.arquivos.inserir(self.arqLabel),\
+            command= lambda: self.arquivos.inserir_recibo(self.arqLabel),\
                 textvariable= self.cam_arquivos)\
                 .place(relx=0.15,rely=0.47,relwidth=0.06,relheight=0.055)
 
@@ -329,7 +361,9 @@ class App:
             self.cam_arquivos = self.arquivos.get_caminhos()
 
             if self.cam_arquivos == (''):
-                raise Exception ('Insira algum arquivo')
+                raise Exception ('Insira algum Recibo')
+            elif self.cam_matriz == '':
+                raise Exception ('Insira alguma Matriz')
 
             declaracao = self.definir_declaracao()
 
