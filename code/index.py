@@ -70,13 +70,13 @@ class Matriz(Arquivo):
 
     def validar(self, df):
         cnpjs_matriz = self.ler()
+        qnt_excluidos = 0
 
-        lista_excluidos = []
         for index, row in df.iterrows():
             if row['CNPJ'] not in cnpjs_matriz:
-                lista_excluidos.append(row)
+                qnt_excluidos = qnt_excluidos + 1
 
-        return lista_excluidos
+        return qnt_excluidos
 
     def ler(self):
         arquivo = pd.read_excel(self.caminho[0], header=None)
@@ -139,20 +139,12 @@ class Writer:
         self.table_ref()
         self.preencher_fields()
 
-        if cnpj_inv != []:
-            messagebox.showinfo(title='Aviso', message= f"{len(cnpj_inv)} recibos foram marcados por não constarem na matriz")
-            self.marcar_invalido(cnpj_inv)
+        if cnpj_inv != 0:
+            messagebox.showinfo(title='Aviso', message= f"{cnpj_inv} recibos foram marcados por não constarem na matriz")
 
-        self.preencher_data()
+        self.preencher_data(cnpj_inv)
 
         self.wb.close()
-
-    def marcar_invalido(self, cnpj_inv):
-        for index, item in enumerate(cnpj_inv):
-            for id, valor in enumerate(item):
-                self.ws.write(index+ self.lin_data, id, valor,\
-                self.wb.add_format({'border':3, 'align':'center', 'bg_color':'yellow'}))
-        self.lin_data = self.lin_data + index + 1
 
     def cabecalho(self):
         self.ws.write(0,0,f'RELATÓRIO DE CONFERÊNCIA {self.titulo}',\
@@ -186,11 +178,15 @@ class Writer:
             self.ws.write(self.LIN_INDEX, index, column['name'],\
                 self.wb.add_format({'bold':True,'top':2, 'bg_color':'#a7b8ab','underline':True, 'align':'center'}))
 
-    def preencher_data(self):
+    def preencher_data(self, cnpj_inv):
         for index, item in enumerate(self.data['data']):
             for id, valor in enumerate(item.values()):
-                self.ws.write(index+ self.lin_data, id, valor,\
-                self.wb.add_format({'border':3, 'align':'center'}))
+                if id >= cnpj_inv - 1:
+                    self.ws.write(index+ self.lin_data, id, valor,\
+                    self.wb.add_format({'border':3, 'align':'center'}))
+                else:
+                    self.ws.write(index+ self.lin_data, id, valor,\
+                    self.wb.add_format({'border':3, 'align':'center', 'bg_color':'yellow'}))
 
     def data_confe(self):
         data = f'{datetime.now().month - 1}/{datetime.now().year}'
