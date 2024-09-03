@@ -16,58 +16,13 @@ locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
 
 window = Tk()
 
-class Arquivos:
-    #Cada arquivo possui um banco
+class Arquivo:
     def __init__(self):
-        self.caminhos = ('')
-        self.matriz = ''
+        self.tipos_validos = ''
 
-    def get_caminhos(self):
-        return self.caminhos
-
-    def inserir_matriz(self, label):
-        try:
-            self.matriz = askopenfilename()
-
-            if self.matriz == '':
-                raise ValueError('Operação cancelada')
-
-            label['text'] = self.validar_entrada([self.matriz])
-
-            return self.matriz
-        except ValueError:
-            messagebox.showerror(title='Aviso', message= 'Operação cancelada')
-        except Exception as error:
-            messagebox.showerror(title='Aviso', message= error)
-
-    def inserir_recibo(self, label):
-        try:
-            self.caminhos = askopenfilenames()
-
-            if self.caminhos == (''):
-                raise ValueError('Operação cancelada')
-
-            label['text'] = self.validar_entrada(self.caminhos)
-
-            return self.caminhos
-
-        except ValueError:
-            messagebox.showerror(title='Aviso', message= 'Operação cancelada')
-        except Exception as error:
-            messagebox.showerror(title='Aviso', message= error)
-
-    def abrir(self, df, titulo):
-        file = asksaveasfilename(title='Favor selecionar a pasta onde será salvo', filetypes=((".xlsx","*.xlsx"),))
-
-        Writer(df, titulo).gerar_arquivo(file)
-
-        messagebox.showinfo(title='Aviso', message='Abrindo o arquivo gerado!')
-
-        os.startfile(file+'.xlsx')
-
-    def validar_entrada(self, valor):
+    def validar_entrada(self, caminhos):
         text_caminhos = ''
-        for caminho in valor:
+        for caminho in caminhos:
             if any(c not in string.ascii_letters for c in caminho):
                 caminho = self.formato_ascii(caminho)
 
@@ -78,7 +33,7 @@ class Arquivos:
         return text_caminhos
 
     def __tipo(self, caminho):
-        if caminho[len(caminho) -3 :] != 'pdf':
+        if caminho[len(caminho) -3 :] != self.tipos_validos:
             ultima_barra = caminho.rfind('/')
             raise Exception(
                 f'Formato inválido do arquivo: {caminho[ultima_barra+1:]}')
@@ -87,17 +42,90 @@ class Arquivos:
         caminho_uni = unidecode(caminho)
         os.rename(caminho, caminho_uni)
         return caminho_uni
+    
+    def get_caminho(self):
+        return self.caminho
+
+class Matriz(Arquivo):
+    def __init__(self):
+        super().__init__()
+        self.tipos_validos = 'lsx'
+        self.caminho = ''
+
+    def inserir(self, label):
+        try:
+            caminhos = [askopenfilename()]
+
+            if caminhos == '':
+                raise ValueError('Operação cancelada')
+
+            label['text'] = self.validar_entrada(caminhos)
+
+            self.caminho = caminhos
+
+        except ValueError:
+            messagebox.showerror(title='Aviso', message= 'Operação cancelada')
+        except Exception as error:
+            messagebox.showerror(title='Aviso', message= error)
+
+    def validar(self, df):
+        cnpjs_matriz = self.ler()
+
+        lista_excluidos = []
+        for index, row in df.iterrows():
+            if row['CNPJ'] not in cnpjs_matriz:
+                lista_excluidos.append(row)
+
+        return lista_excluidos
+
+    def ler(self):
+        arquivo = pd.read_excel(self.caminho[0], header=None)
+        arquivo = arquivo.drop(0, axis=1)
+        arquivo = arquivo.drop(0, axis=0)
+
+        return loads(arquivo.to_json(orient="values"))
+
+class Recibo(Arquivo):
+    def __init__(self):
+        super().__init__()
+        self.tipos_validos = 'pdf'
+        self.caminho = []
+
+    def inserir(self, label):
+        try:
+            caminhos = askopenfilenames()
+
+            if caminhos == []:
+                raise ValueError('Operação cancelada')
+
+            label['text'] = self.validar_entrada(caminhos)
+
+            self.caminho = caminhos
+
+        except ValueError:
+            messagebox.showerror(title='Aviso', message= 'Operação cancelada')
+        except Exception as error:
+            messagebox.showerror(title='Aviso', message= error)
 
 class Writer:
     def __init__(self, df, titulo):
         self.df = df
-        self.COL_INDEX = 6
-        self.COL_DATA = self.COL_INDEX + 1
+        self.LIN_INDEX = 6
+        self.lin_data = self.LIN_INDEX + 1
         self.titulo = titulo
 
         self.data = loads(df.to_json(orient="table", index=False))
 
-    def gerar_arquivo(self, nome_arq):
+    def abrir(self, cnpj_inv):
+        file = asksaveasfilename(title='Favor selecionar a pasta onde será salvo', filetypes=((".xlsx","*.xlsx"),))
+
+        self.gerar_arquivo(file, cnpj_inv)
+
+        messagebox.showinfo(title='Aviso', message='Abrindo o arquivo gerado!')
+
+        os.startfile(file+'.xlsx')
+
+    def gerar_arquivo(self, nome_arq, cnpj_inv):
         self.wb = Workbook(nome_arq + '.xlsx')
         self.ws = self.wb.add_worksheet('Sheet1')
         self.ws.set_column('A:A', 40)
@@ -110,9 +138,21 @@ class Writer:
         self.cabecalho()
         self.table_ref()
         self.preencher_fields()
+
+        if cnpj_inv != []:
+            messagebox.showinfo(title='Aviso', message= f"{len(cnpj_inv)} recibos foram marcados por não constarem na matriz")
+            self.marcar_invalido(cnpj_inv)
+
         self.preencher_data()
 
         self.wb.close()
+
+    def marcar_invalido(self, cnpj_inv):
+        for index, item in enumerate(cnpj_inv):
+            for id, valor in enumerate(item):
+                self.ws.write(index+ self.lin_data, id, valor,\
+                self.wb.add_format({'border':3, 'align':'center', 'bg_color':'yellow'}))
+        self.lin_data = self.lin_data + index + 1
 
     def cabecalho(self):
         self.ws.write(0,0,f'RELATÓRIO DE CONFERÊNCIA {self.titulo}',\
@@ -143,13 +183,13 @@ class Writer:
 
     def preencher_fields(self):
         for index, column in enumerate(self.data['schema']['fields']):
-            self.ws.write(self.COL_INDEX, index, column['name'],\
+            self.ws.write(self.LIN_INDEX, index, column['name'],\
                 self.wb.add_format({'bold':True,'top':2, 'bg_color':'#a7b8ab','underline':True, 'align':'center'}))
 
     def preencher_data(self):
         for index, item in enumerate(self.data['data']):
             for id, valor in enumerate(item.values()):
-                self.ws.write(index+ self.COL_DATA, id, valor,\
+                self.ws.write(index+ self.lin_data, id, valor,\
                 self.wb.add_format({'border':3, 'align':'center'}))
 
     def data_confe(self):
@@ -177,12 +217,13 @@ class Des(Competencia):
     def add_linha(self, arquivo):
         self.tabela = tb.read_pdf(arquivo, pages= 1, stream= True,\
                         relative_area=True, area= [10,0,59,68])[0]
+        
+        ##CNPJ
+        self.cnpj.append(self.tabela.iloc[0,1])
+
         ##Nome Emp
         self.nome_emp.append(self.tabela.iloc[1,0]\
             .replace('Nome/Razão Social: ',''))
-
-        ##CNPJ
-        self.cnpj.append(self.tabela.iloc[0,1])
 
         ##Ref.
         self.referencia.append(self.tabela.iloc[3,0]\
@@ -261,9 +302,8 @@ class Reinf(Competencia):
 class App:
     def __init__(self):
         self.window = window
-        self.arquivos = Arquivos()
-        self.cam_arquivos = ''
-        self.cam_matriz = ''
+        self.recibos = Recibo()
+        self.matriz = Matriz()
         self.tela()
         self.index()
         window.mainloop()
@@ -302,8 +342,7 @@ class App:
         self.matLabel.place(relx=0.21,rely=0.32,relwidth=0.7, relheight=0.055)
         
         Button(self.index, text='Enviar',\
-            command= lambda: self.arquivos.inserir_matriz(self.matLabel),\
-                textvariable= self.cam_matriz)\
+            command = lambda: self.matriz.inserir(self.matLabel))\
                 .place(relx=0.15,rely=0.32,relwidth=0.06,relheight=0.055)
 
         ###########Arquivo
@@ -317,8 +356,7 @@ class App:
         self.arqLabel.place(relx=0.21,rely=0.47,relwidth=0.7, relheight=0.2)
         
         Button(self.index, text='Enviar',\
-            command= lambda: self.arquivos.inserir_recibo(self.arqLabel),\
-                textvariable= self.cam_arquivos)\
+            command = lambda: self.recibos.inserir(self.arqLabel))\
                 .place(relx=0.15,rely=0.47,relwidth=0.06,relheight=0.055)
 
         ###########EFD
@@ -358,21 +396,24 @@ class App:
 
     def executar(self):
         #try:       
-            self.cam_arquivos = self.arquivos.get_caminhos()
+            cam_matriz = self.matriz.get_caminho()
+            cam_recibo = self.recibos.get_caminho()
 
-            if self.cam_arquivos == (''):
+            if cam_recibo == (''):
                 raise Exception ('Insira algum Recibo')
-            elif self.cam_matriz == '':
+            elif cam_matriz == '':
                 raise Exception ('Insira alguma Matriz')
 
             declaracao = self.definir_declaracao()
 
-            for arquivo in self.cam_arquivos:
+            for arquivo in cam_recibo:
                 declaracao.add_linha(arquivo)
 
-            arquivo_final = declaracao.gerar_df()
+            df = declaracao.gerar_df()
+
+            cnpj_inv = self.matriz.validar(df)
             
-            self.arquivos.abrir(arquivo_final, declaracao.to_string())
+            Writer(df, declaracao.to_string()).abrir(cnpj_inv)
          
         # except PermissionError:
         #     messagebox.showerror(title='Aviso', message= 'Feche o arquivo gerado antes de criar outro')
