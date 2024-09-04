@@ -68,16 +68,6 @@ class Matriz(Arquivo):
         except Exception as error:
             messagebox.showerror(title='Aviso', message= error)
 
-    # def validar(self, df):
-    #     cnpjs_matriz = self.ler()
-    #     qnt_excluidos = 0
-
-    #     for index, row in df.iterrows():
-    #         if row['CNPJ'] not in cnpjs_matriz:
-    #             qnt_excluidos = qnt_excluidos + 1
-
-    #     return qnt_excluidos
-
     def ler(self):
         return pd.read_excel(self.caminho[0], na_filter=False, usecols='A:B')
     
@@ -97,7 +87,8 @@ class Recibo(Arquivo):
             if caminhos == []:
                 raise ValueError('Operação cancelada')
 
-            label['text'] = self.validar_entrada(caminhos)
+            for item in caminhos:
+                label.insert(END, f'{self.validar_entrada(item)}\n')
 
             self.caminho = caminhos
 
@@ -338,53 +329,58 @@ class App:
         self.index.place(relx=0.05,rely=0.05,relwidth=0.9,relheight=0.9)
 
         #Titulo
-        Label(self.index, text='Conferência Automática', background='lightblue', font=('arial',30,'bold')).place(relx=0.23,rely=0.1,relheight=0.15)
+        Label(self.index, text='Conferência Automática', background='lightblue', font=('arial',30,'bold')).place(relx=0.23,rely=0.18,relheight=0.15)
 
         #Logo
-        # self.logo = PhotoImage(file='Z:\\18 - PROGRAMAS DELTA\\code\\imgs\\deltaprice-hori.png')
+        self.logo = PhotoImage(file='Z:\\18 - PROGRAMAS DELTA\\code\\imgs\\deltaprice-hori.png')
         
-        # self.logo = self.logo.subsample(4,4)
+        self.logo = self.logo.subsample(4,4)
         
-        # Label(self.window, image=self.logo, background='lightblue')\
-        #     .place(relx=0.175,rely=0.1,relwidth=0.7,relheight=0.2)
+        Label(self.window, image=self.logo, background='lightblue', border=0)\
+            .place(relx=0.205,rely=0.05,relwidth=0.7,relheight=0.2)
 
         #Labels e Entrys
         ###########Matriz
         Label(self.index, text='Insira aqui a Matriz/Referência:',\
             background='lightblue', font=(10))\
-                .place(relx=0.15,rely=0.25)
+                .place(relx=0.15,rely=0.33)
 
         self.nome_Mat = ''
         self.matLabel = Label(self.index)
-        self.matLabel.config(font=("Arial", 8, 'bold italic'))
-        self.matLabel.place(relx=0.21,rely=0.32,relwidth=0.7, relheight=0.055)
+        self.matLabel.config(font=("Arial", 12, 'bold italic'), anchor= 's')
+        self.matLabel.place(relx=0.21,rely=0.4,relwidth=0.7, relheight=0.055)
         
         Button(self.index, text='Enviar',\
             command = lambda: self.matriz.inserir(self.matLabel))\
-                .place(relx=0.15,rely=0.32,relwidth=0.06,relheight=0.055)
+                .place(relx=0.15,rely=0.4,relwidth=0.06,relheight=0.055)
 
         ###########Arquivo
         Label(self.index, text='Insira aqui os Recibos:',\
             background='lightblue', font=(10))\
-                .place(relx=0.15,rely=0.4)
+                .place(relx=0.15,rely=0.48)
 
         self.nome_arq = ''
-        self.arqLabel = Label(self.index)
+        self.arqLabel = Listbox(self.index, border= 0)
         self.arqLabel.config(font=("Arial", 8, 'bold italic'))
-        self.arqLabel.place(relx=0.21,rely=0.47,relwidth=0.7, relheight=0.2)
+        self.arqLabel.place(relx=0.21,rely=0.55,relwidth=0.675, relheight=0.2)
+
+        self.barra = Scrollbar(self.index, command= self.arqLabel.yview)\
+            .place(relx=0.875,rely=0.55,relwidth=0.03, relheight=0.2)
+        
+        self.arqLabel.config(yscrollcommand= self.barra)
         
         Button(self.index, text='Enviar',\
             command = lambda: self.recibos.inserir(self.arqLabel))\
-                .place(relx=0.15,rely=0.47,relwidth=0.06,relheight=0.055)
+                .place(relx=0.15,rely=0.55,relwidth=0.06,relheight=0.055)
 
         ###########EFD
         Label(self.index, text='Caso o nome da obrigação assesória não constar no nome do arquivo',\
             background='lightblue', font=("Arial", 12, 'bold italic'))\
-                .place(relx=0.15,rely=0.7)
+                .place(relx=0.15,rely=0.775)
 
         Label(self.index, text='Escolha a obrigação:',\
             background='lightblue', font=(10))\
-                .place(relx=0.15,rely=0.75)
+                .place(relx=0.15,rely=0.825)
         
         self.declaracaoEntry = StringVar()
 
@@ -393,12 +389,12 @@ class App:
         self.declaracaoEntry.set('Escolha aqui')
 
         self.popup = OptionMenu(self.index, self.declaracaoEntry, *self.declaracaoEntryOpt)\
-            .place(relx=0.375,rely=0.75,relwidth=0.2,relheight=0.06)
-        
+            .place(relx=0.375,rely=0.835,relwidth=0.2,relheight=0.06)
+
         #Botão enviar
         Button(self.index, text='Gerar Conferencia',\
             command= lambda: self.executar())\
-                .place(relx=0.65,rely=0.8,relwidth=0.25,relheight=0.12)
+                .place(relx=0.65,rely=0.85,relwidth=0.25,relheight=0.12)
 
     def definir_declaracao(self):
         declaracao_selecionado = self.declaracaoEntry.get()
