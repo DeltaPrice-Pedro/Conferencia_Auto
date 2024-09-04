@@ -68,22 +68,21 @@ class Matriz(Arquivo):
         except Exception as error:
             messagebox.showerror(title='Aviso', message= error)
 
-    def validar(self, df):
-        cnpjs_matriz = self.ler()
-        qnt_excluidos = 0
+    # def validar(self, df):
+    #     cnpjs_matriz = self.ler()
+    #     qnt_excluidos = 0
 
-        for index, row in df.iterrows():
-            if row['CNPJ'] not in cnpjs_matriz:
-                qnt_excluidos = qnt_excluidos + 1
+    #     for index, row in df.iterrows():
+    #         if row['CNPJ'] not in cnpjs_matriz:
+    #             qnt_excluidos = qnt_excluidos + 1
 
-        return qnt_excluidos
+    #     return qnt_excluidos
 
     def ler(self):
-        arquivo = pd.read_excel(self.caminho[0], header=None)
-        arquivo = arquivo.drop(0, axis=1)
-        arquivo = arquivo.drop(0, axis=0)
-
-        return loads(arquivo.to_json(orient="values"))
+        return pd.read_excel(self.caminho[0], na_filter=False, usecols='A:B')
+    
+    def cnpjs(self, arquivo):
+        return arquivo.loc[arquivo['CNPJ'] != '']
 
 class Recibo(Arquivo):
     def __init__(self):
@@ -108,24 +107,23 @@ class Recibo(Arquivo):
             messagebox.showerror(title='Aviso', message= error)
 
 class Writer:
-    def __init__(self, df, titulo):
+    def __init__(self, df, df_matriz, titulo):
         self.df = df
+        self.df_matriz = df_matriz
         self.LIN_INDEX = 6
         self.lin_data = self.LIN_INDEX + 1
         self.titulo = titulo
 
-        self.data = loads(df.to_json(orient="table", index=False))
-
-    def abrir(self, cnpj_inv):
+    def abrir(self):
         file = asksaveasfilename(title='Favor selecionar a pasta onde será salvo', filetypes=((".xlsx","*.xlsx"),))
 
-        self.gerar_arquivo(file, cnpj_inv)
+        self.gerar_arquivo(file)
 
         messagebox.showinfo(title='Aviso', message='Abrindo o arquivo gerado!')
 
         os.startfile(file+'.xlsx')
 
-    def gerar_arquivo(self, nome_arq, cnpj_inv):
+    def gerar_arquivo(self, nome_arq):
         self.wb = Workbook(nome_arq + '.xlsx')
         self.ws = self.wb.add_worksheet('Sheet1')
         self.ws.set_column('A:A', 40)
@@ -138,11 +136,12 @@ class Writer:
         self.cabecalho()
         self.table_ref()
         self.preencher_fields()
+        self.preencher_matriz()
+        
+        excluidos = self.preencher_data()
 
-        if cnpj_inv != 0:
-            messagebox.showinfo(title='Aviso', message= f"{cnpj_inv} recibos foram marcados por não constarem na matriz")
-
-        self.preencher_data(cnpj_inv)
+        if excluidos != []:
+            messagebox.showinfo(title='Aviso', message= f"Os recibos das empresas: - {excluidos} - foram marcados por não constarem na matriz")
 
         self.wb.close()
 
@@ -159,34 +158,50 @@ class Writer:
         self.ws.write(3,1, datetime.now().strftime("%d/%m/%Y"))
 
     def table_ref(self):
-        tam_df = len(self.data["data"])+7
+        tam_df = len(self.df_matriz)+7
         ref = {
-            'Quant. de empresas:': f'=COUNTA($B8:$B{tam_df})',
-            'Obrigadas:': '=$E2',
+            'Obrigadas:': f'=COUNTA($B8:$B{tam_df})',
             'Entregues:': f'=COUNTIF($D8:$D{tam_df}, "ENVIADO")',
             'Não Entregues:': '=$E3 - $E4'
         }
         for index, text in enumerate(ref.items()):
-            self.ws.write(index+1,3, text[0],\
+            self.ws.write(index+2,3, text[0],\
                 self.wb.add_format({'bold':True,'border':1,'align':'right'}))
             
-            self.ws.write(index+1,4, text[1],\
+            self.ws.write(index+2,4, text[1],\
                 self.wb.add_format({'border':1,'align':'center'}))
 
     def preencher_fields(self):
-        for index, column in enumerate(self.data['schema']['fields']):
-            self.ws.write(self.LIN_INDEX, index, column['name'],\
+        for index, columns in enumerate(list(self.df.columns)):
+            self.ws.write(self.LIN_INDEX, index, columns,\
                 self.wb.add_format({'bold':True,'top':2, 'bg_color':'#a7b8ab','underline':True, 'align':'center'}))
 
-    def preencher_data(self, cnpj_inv):
-        for index, item in enumerate(self.data['data']):
-            for id, valor in enumerate(item.values()):
-                if id >= cnpj_inv - 1:
-                    self.ws.write(index+ self.lin_data, id, valor,\
+    def preencher_matriz(self):
+        for index, row in self.df_matriz.iterrows():
+            for col_index, valor in enumerate(row):
+                self.ws.write(index + self.lin_data, col_index, valor,\
                     self.wb.add_format({'border':3, 'align':'center'}))
-                else:
-                    self.ws.write(index+ self.lin_data, id, valor,\
-                    self.wb.add_format({'border':3, 'align':'center', 'bg_color':'yellow'}))
+
+            i = 1
+            col_index = col_index + 1
+            for i in range(len(self.df)+1):
+                self.ws.write(index + self.lin_data, col_index + i, '',\
+                    self.wb.add_format({'border':3}))
+
+    def preencher_data(self):
+        lista_excluidos = []
+        cnpj_matriz = Matriz().cnpjs(self.df_matriz)
+        for index, row in self.df.iterrows():
+            if row['CNPJ'] not in cnpj_matriz.values:
+                formato = self.wb.add_format({'border':3, 'align':'center', 'bg_color':'yellow'})
+                lista_excluidos.append(row['Nome'])
+            else:
+                formato = self.wb.add_format({'border':3, 'align':'center'})
+                
+            for col_index, valor in enumerate(row):
+                self.ws.write(index + self.lin_data, col_index, valor, formato)
+
+        return lista_excluidos
 
     def data_confe(self):
         data = f'{datetime.now().month - 1}/{datetime.now().year}'
@@ -197,6 +212,7 @@ class Competencia:
     def __init__(self):
         self.nome_emp = []
         self.cnpj = []
+        self.referencia = []
         self.data = []
         self.hora = []
 
@@ -206,7 +222,6 @@ class Competencia:
 class Des(Competencia):
     def __init__(self):
         super().__init__()
-        self.referencia = []
         self.servicos = []
         self.titulo = 'DES'
 
@@ -257,12 +272,10 @@ class Reinf(Competencia):
         self.titulo = 'EFD REINF'
 
     def add_linha(self, arquivo):
-        arquivo_lido = tb.read_pdf(arquivo, pages=1, stream=True,\
-                        relative_area=True ,area=[10,0,100,100])[0]
-        
-        tabela = arquivo_lido.loc[
-            arquivo_lido['Evento'] == 'R-2099 - Fechamento dos Eventos Periódicos'
-            ]
+        arquivo = tb.read_pdf(arquivo, pages=1, stream=True,\
+                        relative_area=True ,area=[5,0,100,100])[0]
+
+        tabela = arquivo.loc[arquivo['Unnamed: 2'] == 'R-2099 - Fechamento dos Eventos Periódicos']
 
         prim_linha = tabela.iloc[0,0]
 
@@ -275,11 +288,14 @@ class Reinf(Competencia):
         ##CNPJ
         self.cnpj.append(tabela.iloc[0,1][:18])
 
+        ##Ref
+        self.referencia.append(tabela.iloc[0,2])
+
         ##Situação
-        self.situacao.append(tabela.iloc[0,4].replace('Sucesso','ENVIADO'))
+        self.situacao.append(tabela.iloc[0,5].replace('Sucesso','ENVIADO'))
 
         ##Data e Hora
-        col_dthr = tabela.iloc[0,6][:18]
+        col_dthr = tabela.iloc[0,7][:18]
 
         self.data.append(col_dthr[:10])
 
@@ -287,9 +303,10 @@ class Reinf(Competencia):
 
     def gerar_df(self):
         return pd.DataFrame({
-            'Num. Domínio': self.num_dom,
+            #'Num. Domínio': self.num_dom,
             'Nome': self.nome_emp, 
             'CNPJ': self.cnpj, 
+            'Referência': self.referencia,
             'Situação': self.situacao, 
             'Data Entrega': self.data,
             'Hora Entrega': self.hora,
@@ -407,9 +424,9 @@ class App:
 
             df = declaracao.gerar_df()
 
-            cnpj_inv = self.matriz.validar(df)
+            df_matriz = self.matriz.ler()
             
-            Writer(df, declaracao.to_string()).abrir(cnpj_inv)
+            Writer(df, df_matriz, declaracao.to_string()).abrir()
          
         # except PermissionError:
         #     messagebox.showerror(title='Aviso', message= 'Feche o arquivo gerado antes de criar outro')
