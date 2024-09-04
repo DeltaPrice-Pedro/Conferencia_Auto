@@ -178,15 +178,20 @@ class Writer:
 
     def preencher_matriz(self):
         for index, row in self.df_matriz.iterrows():
+            #Adciona Nome e CNPJ apenas
             for col_index, valor in enumerate(row):
                 self.ws.write(index + self.lin_data, col_index, valor,\
                     self.wb.add_format({'border':3, 'align':'center'}))
+            
+            #Termina o df com espaços vazios
+            self.espacos_vazios(index)
 
-            i = 1
-            col_index = col_index + 1
-            for i in range(len(self.df)+1):
-                self.ws.write(index + self.lin_data, col_index + i, '',\
-                    self.wb.add_format({'border':3}))
+    def espacos_vazios(self, index):
+        diferenca = 1
+        col_index = 2
+        for diferenca in range(len(self.df)+1):
+            self.ws.write(index + self.lin_data, col_index + diferenca, '',\
+                self.wb.add_format({'border':3}))
 
     def preencher_data(self):
         lista_excluidos = []
