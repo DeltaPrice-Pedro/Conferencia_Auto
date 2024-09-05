@@ -26,7 +26,7 @@ class Arquivo:
             caminho = self.formato_ascii(caminho)
 
         self.__tipo(caminho)
-        return caminho[caminho.rfind('/') +1:]
+        return caminho
 
     def __tipo(self, caminho):
         if caminho[len(caminho) -3 :] != self.tipos_validos:
@@ -55,9 +55,10 @@ class Matriz(Arquivo):
             if caminho == '':
                 return None
 
-            label['text'] = self.validar_entrada(caminho)
+            caminho_validado = self.validar_entrada(caminho)
+            label['text'] = caminho[caminho.rfind('/') +1:]
 
-            self.caminho = caminho
+            self.caminho = caminho_validado
 
         except ValueError:
             messagebox.showerror(title='Aviso', message= 'Operação cancelada')
@@ -85,10 +86,12 @@ class Recibo(Arquivo):
                 return None
 
             label.delete(0, END)
+            caminhos_validados = []
             for item in caminhos:
-                label.insert(END, f'{self.validar_entrada(item)}\n')
+                caminhos_validados.append(self.validar_entrada(item))
+                label.insert(END, f'{item[item.rfind('/') +1:]}\n')
 
-            self.caminho = caminhos
+            self.caminho = caminhos_validados
 
         except ValueError:
             messagebox.showerror(title='Aviso', message= 'Operação cancelada')
@@ -430,7 +433,7 @@ class App:
             cam_matriz = self.matriz.get_caminho()
             cam_recibo = self.recibos.get_caminho()
 
-            if cam_recibo == (''):
+            if cam_recibo == []:
                 raise Exception ('Insira algum Recibo')
             elif cam_matriz == '':
                 raise Exception ('Insira alguma Matriz')
