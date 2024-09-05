@@ -403,7 +403,7 @@ class App:
             return self.declaracao_label()
         
         else:
-            raise Exception('Nome da competência não identificado, favor selecionar tipo')
+            raise Exception('Nome da obrigação não identificado, favor selecionar tipo')
 
     def declaracao_valid(self, valor):
         if 'des' in valor.lower():
@@ -419,7 +419,7 @@ class App:
         if obj_primeiro_item != '':
             for item in itens_label:
                 if obj_primeiro_item.to_string().lower() not in item.lower():
-                    raise Exception('Nem todos elementos são da mesma competência, favor selecionar tipo')
+                    raise Exception('Nem todos elementos são da mesma obrigação, favor selecionar tipo')
         else:
             return ''
 
@@ -447,7 +447,7 @@ class App:
             Writer(df, df_matriz, declaracao.to_string()).abrir()
          
         except (IndexError, TypeError):
-            messagebox.showerror(title='Aviso', message= 'Erro ao extrair o recibo, confira se a competência foi selecionada corretamente. Caso contrário, comunique ao desenvolvedor')
+            messagebox.showerror(title='Aviso', message= 'Erro ao extrair o recibo, confira se a obrigação foi selecionada corretamente. Caso contrário, comunique ao desenvolvedor')
         except Exception as error:
             messagebox.showerror(title='Aviso', message= error)
        
