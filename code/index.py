@@ -331,12 +331,12 @@ class App:
         Label(self.index, text='Conferência Automática', background='lightblue', font=('arial',30,'bold')).place(relx=0.23,rely=0.18,relheight=0.15)
 
         #Logo
-        self.logo = PhotoImage(file='./code/imgs/deltaprice-hori.png')
+        # self.logo = PhotoImage(file='./code/imgs/deltaprice-hori.png')
         
-        self.logo = self.logo.subsample(4,4)
+        # self.logo = self.logo.subsample(4,4)
         
-        Label(self.window, image=self.logo, background='lightblue', border=0)\
-            .place(relx=0.205,rely=0.05,relwidth=0.7,relheight=0.2)
+        # Label(self.window, image=self.logo, background='lightblue', border=0)\
+        #     .place(relx=0.205,rely=0.05,relwidth=0.7,relheight=0.2)
 
         #Labels e Entrys
         ###########Matriz
