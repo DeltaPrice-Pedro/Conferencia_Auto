@@ -331,7 +331,7 @@ class App:
         Label(self.index, text='Conferência Automática', background='lightblue', font=('arial',30,'bold')).place(relx=0.23,rely=0.18,relheight=0.15)
 
         #Logo
-        self.logo = PhotoImage(file='Z:\\18 - PROGRAMAS DELTA\\code\\imgs\\deltaprice-hori.png')
+        self.logo = PhotoImage(file='./code/imgs/deltaprice-hori.png')
         
         self.logo = self.logo.subsample(4,4)
         
