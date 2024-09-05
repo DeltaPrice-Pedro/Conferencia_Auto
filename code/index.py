@@ -7,8 +7,9 @@ from unidecode import unidecode
 import string
 import os
 
+import subprocess
+
 from datetime import *
-from json import loads
 from xlsxwriter import *
 import locale
 
@@ -20,17 +21,12 @@ class Arquivo:
     def __init__(self):
         self.tipos_validos = ''
 
-    def validar_entrada(self, caminhos):
-        text_caminhos = ''
-        for caminho in caminhos:
-            if any(c not in string.ascii_letters for c in caminho):
-                caminho = self.formato_ascii(caminho)
+    def validar_entrada(self, caminho):
+        if any(c not in string.ascii_letters for c in caminho):
+            caminho = self.formato_ascii(caminho)
 
-            ultima_barra = caminho.rfind('/')
-            self.__tipo(caminho)
-            text_caminhos = text_caminhos + '\n' + caminho[ultima_barra+1:]
-
-        return text_caminhos
+        self.__tipo(caminho)
+        return caminho[caminho.rfind('/') +1:]
 
     def __tipo(self, caminho):
         if caminho[len(caminho) -3 :] != self.tipos_validos:
@@ -54,14 +50,14 @@ class Matriz(Arquivo):
 
     def inserir(self, label):
         try:
-            caminhos = [askopenfilename()]
+            caminho = askopenfilename()
 
-            if caminhos == '':
-                raise ValueError('Operação cancelada')
+            if caminho == '':
+                return None
 
-            label['text'] = self.validar_entrada(caminhos)
+            label['text'] = self.validar_entrada(caminho)
 
-            self.caminho = caminhos
+            self.caminho = caminho
 
         except ValueError:
             messagebox.showerror(title='Aviso', message= 'Operação cancelada')
@@ -69,7 +65,8 @@ class Matriz(Arquivo):
             messagebox.showerror(title='Aviso', message= error)
 
     def ler(self):
-        return pd.read_excel(self.caminho[0], na_filter=False, usecols='A:B')
+        return pd.read_excel(self.caminho, na_filter=False, usecols='A:B')\
+            .sort_values('EMPRESA')
     
     def cnpjs(self, arquivo):
         return arquivo.loc[arquivo['CNPJ'] != '']
@@ -84,9 +81,10 @@ class Recibo(Arquivo):
         try:
             caminhos = askopenfilenames()
 
-            if caminhos == []:
-                raise ValueError('Operação cancelada')
+            if caminhos == '':
+                return None
 
+            label.delete(0, END)
             for item in caminhos:
                 label.insert(END, f'{self.validar_entrada(item)}\n')
 
@@ -180,7 +178,7 @@ class Writer:
     def espacos_vazios(self, index):
         diferenca = 1
         col_index = 2
-        for diferenca in range(len(self.df)+1):
+        for diferenca in range(len(self.df)+3):
             self.ws.write(index + self.lin_data, col_index + diferenca, '',\
                 self.wb.add_format({'border':3}))
 
@@ -313,6 +311,7 @@ class App:
         self.window = window
         self.recibos = Recibo()
         self.matriz = Matriz()
+        self.a = Des()
         self.tela()
         self.index()
         window.mainloop()
@@ -384,7 +383,7 @@ class App:
         
         self.declaracaoEntry = StringVar()
 
-        self.declaracaoEntryOpt = ["DES", "REINF"]
+        self.declaracaoEntryOpt = [self.a.to_string(), "REINF"]
 
         self.declaracaoEntry.set('Escolha aqui')
 
@@ -397,19 +396,37 @@ class App:
                 .place(relx=0.65,rely=0.85,relwidth=0.25,relheight=0.12)
 
     def definir_declaracao(self):
-        declaracao_selecionado = self.declaracaoEntry.get()
-        nome_arq = self.arqLabel['text']
+        if self.declaracao_valid(self.declaracaoEntry.get()) != '':
+            return self.declaracao_valid(self.declaracaoEntry.get())
+        
+        elif self.declaracao_label() != '':
+            return self.declaracao_label()
+        
+        else:
+            raise Exception('Nome da competência não identificado, favor selecionar tipo')
 
-        if declaracao_selecionado == 'DES' or\
-            'des' in nome_arq.lower():
+    def declaracao_valid(self, valor):
+        if 'des' in valor.lower():
             return Des()
-        elif declaracao_selecionado == 'REINF' or\
-            'reinf' in nome_arq.lower():
+        elif 'reinf' in valor.lower():
             return Reinf()
-        raise Exception('Declaração inválida, favor selecioná-lo')
+        return ''            
+        
+    def declaracao_label(self):
+        itens_label = self.arqLabel.get(0,END)
+        obj_primeiro_item = self.declaracao_valid(itens_label[0])
+
+        if obj_primeiro_item != '':
+            for item in itens_label:
+                if obj_primeiro_item.to_string().lower() not in item.lower():
+                    raise Exception('Nem todos elementos são da mesma competência, favor selecionar tipo')
+        else:
+            return ''
+
+        return obj_primeiro_item
 
     def executar(self):
-        #try:       
+        try:       
             cam_matriz = self.matriz.get_caminho()
             cam_recibo = self.recibos.get_caminho()
 
@@ -429,13 +446,9 @@ class App:
             
             Writer(df, df_matriz, declaracao.to_string()).abrir()
          
-        # except PermissionError:
-        #     messagebox.showerror(title='Aviso', message= 'Feche o arquivo gerado antes de criar outro')
-        # except UnboundLocalError:
-        #     messagebox.showerror(title='Aviso', message= 'Arquivo não compativel a esse banco')
-        # except subprocess.CalledProcessError:
-        #     messagebox.showerror(title='Aviso', message= "Erro ao extrair a tabela, confira se o banco foi selecionado corretamente. Caso contrário, comunique o desenvolvedor")
-        # except Exception as error:
-        #     messagebox.showerror(title='Aviso', message= error)
+        except (IndexError, TypeError):
+            messagebox.showerror(title='Aviso', message= 'Erro ao extrair o recibo, confira se a competência foi selecionada corretamente. Caso contrário, comunique ao desenvolvedor')
+        except Exception as error:
+            messagebox.showerror(title='Aviso', message= error)
        
 App()
