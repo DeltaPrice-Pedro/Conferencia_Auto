@@ -36,7 +36,7 @@ class Arquivo:
 
     def formato_ascii(self, caminho):
         caminho_uni = unidecode(caminho)
-        os.rename(caminho, caminho_uni)
+        os.renames(caminho, caminho_uni)
         return caminho_uni
     
     def get_caminho(self):
