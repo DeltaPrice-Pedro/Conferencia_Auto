@@ -115,7 +115,7 @@ class Writer:
 
     def gerar_arquivo(self, nome_arq):
         self.wb = Workbook(nome_arq + '.xlsx')
-        self.ws = self.wb.add_worksheet('Sheet1')
+        self.ws = self.wb.add_worksheet('Relacionados')
         self.ws.set_column('A:A', 40)
         self.ws.set_column('B:B', 20)
         self.ws.set_column('C:C', 15)
@@ -131,8 +131,12 @@ class Writer:
         
         excluidos = self.preencher_data()
 
-        if excluidos != 0:
-            messagebox.showinfo(title='Aviso', message= f"{excluidos} recibos foram marcados por não constarem na matriz")
+        if len(excluidos) != 0:
+            messagebox.showinfo(title='Aviso', message= f'{len(excluidos)} empresas foram inseridas na aba "Não relacionadas" por não constarem na matriz')
+
+            self.ws_excluidos = self.wb.add_worksheet('Não relacionados')
+
+            self.preencher_excluidos(excluidos)
 
         self.wb.close()
 
@@ -152,9 +156,11 @@ class Writer:
         tam_df = len(self.df_matriz)+7
         ref = {
             'Obrigadas:': f'=COUNTA($A8:$A{tam_df})',
-            'Entregues:': f'=COUNTIF($D8:$D{tam_df}, "ENVIADO")',
+            'Entregues:': f'=COUNTA($C8:$C{tam_df})',
             'Não Entregues:': '=$E3 - $E4'
         }
+
+        #f'=COUNTIF($D8:$D{tam_df}, "ENVIADO")'
         for index, text in enumerate(ref.items()):
             self.ws.write(index+2,3, text[0],\
                 self.wb.add_format({'bold':True,'border':1,'align':'right'}))
@@ -163,11 +169,8 @@ class Writer:
                 self.wb.add_format({'border':1,'align':'center'}))
 
     def preencher_fields(self):
-        self.ws.write(self.LIN_INDEX, 0, 'Nome Empresa',\
-                self.wb.add_format({'bold':True,'top':2, 'bg_color':'#a7b8ab','underline':True, 'align':'center'}))
-        
         for col_index, columns in enumerate(list(self.df.columns)):
-            self.ws.write(self.LIN_INDEX, col_index + self.dif_cnpj, columns,self.wb.add_format({'bold':True,'top':2, 'bg_color':'#a7b8ab','underline':True, 'align':'center'}))
+            self.ws.write(self.LIN_INDEX, col_index, columns,self.wb.add_format({'bold':True,'top':2, 'bg_color':'#a7b8ab','underline':True, 'align':'center'}))
 
     def preencher_matriz(self):
         for index, row in self.df_matriz.iterrows():
@@ -180,12 +183,12 @@ class Writer:
             self.espacos_vazios(index)
 
     def espacos_vazios(self, index):
-        for col_index in range(len(self.df.columns) - self.dif_cnpj):
+        for col_index in range(len(self.df.columns) - self.dif_data):
             self.ws.write(index + self.lin_data, col_index + self.dif_data, '',\
                 self.wb.add_format({'border':3}))
 
     def preencher_data(self):
-        excluidos = 0
+        excluidos = []
         for index_recibo, row_recibo in self.df.iterrows():
             achado = False
             print(f'{row_recibo['CNPJ']} - CNPJ procurado')
@@ -194,15 +197,33 @@ class Writer:
                 if row_recibo['CNPJ'] == row_matriz['CNPJ']:
                     achado = True
                     for col_index, valor in enumerate(row_recibo):
-                        self.ws.write(index_matriz + self.lin_data, col_index + self.dif_cnpj, valor, self.wb.add_format({'border':3, 'align':'center'}))
+                        self.ws.write(index_matriz + self.lin_data, col_index, valor, self.wb.add_format({'border':3, 'align':'center'}))
 
                     break
 
             if achado == False:
-                self.ws.write(5, 0, 'Nome Empresa', self.wb.add_format({'border':3, 'align':'center', 'bg_color':'yellow'}))
-                excluidos = excluidos + 1
+                excluidos.append(row_recibo)
                     
         return excluidos
+    
+    def preencher_excluidos(self, excluidos):
+        self.ws_excluidos.set_column('A:A', 40)
+        self.ws_excluidos.set_column('B:B', 20)
+        self.ws_excluidos.set_column('C:C', 15)
+        self.ws_excluidos.set_column('D:D', 20)
+        self.ws_excluidos.set_column('E:E', 15)
+        self.ws_excluidos.set_column('F:F', 20)
+        self.ws_excluidos.set_column('G:G', 20)
+
+        self.ws_excluidos.write(0,0,f'EMPRESAS NÃO RELACIONADAS {self.titulo}',\
+            self.wb.add_format({'bold': True, 'font_size': 26}))
+        
+        for col_index, columns in enumerate(list(self.df.columns)):
+            self.ws_excluidos.write(self.LIN_INDEX, col_index, columns,self.wb.add_format({'bold':True,'top':2, 'bg_color':'#a7b8ab','underline':True, 'align':'center'}))
+
+        for index_recibo, row_recibo in enumerate(excluidos):
+            for col_index, valor in enumerate(row_recibo):
+                self.ws_excluidos.write(index_recibo + self.lin_data, col_index, valor, self.wb.add_format({'border':3, 'align':'center', 'bg_color':'yellow'}))
     
     def data_confe(self):
         data = f'{datetime.now().month - 1}/{datetime.now().year}'
@@ -211,6 +232,7 @@ class Writer:
 
 class Competencia:
     def __init__(self):
+        self.nome_emp = []
         self.cnpj = []
         self.referencia = []
         self.data = []
@@ -226,19 +248,22 @@ class Des(Competencia):
         self.titulo = 'DES'
 
     def add_linha(self, arquivo):
-        self.tabela = tb.read_pdf(arquivo, pages= 1, stream= True,\
+        tabela = tb.read_pdf(arquivo, pages= 1, stream= True,\
                         relative_area=True, area= [10,0,59,68])[0]
         
+        ##Nome Emp
+        self.nome_emp.append(tabela.iloc[1,0].replace('Nome/Razão Social: ',''))
+
         ##CNPJ
-        self.cnpj.append(self.tabela.iloc[0,1])
+        self.cnpj.append(tabela.iloc[0,1])
 
         ##Ref.
-        self.referencia.append(self.tabela.iloc[3,0]\
+        self.referencia.append(tabela.iloc[3,0]\
             .replace('Referência: ','')\
                     .replace(' No Protocolo:',''))
 
         ##Data e Hora
-        col_dthr = self.tabela.iloc[4,0].replace('Data/Hora de Entrega: ','')\
+        col_dthr = tabela.iloc[4,0].replace('Data/Hora de Entrega: ','')\
                         .replace(' Regime de Tributação:','')
 
         self.data.append(col_dthr[:10])
@@ -246,12 +271,13 @@ class Des(Competencia):
         self.hora.append(col_dthr[10:])
 
         ##Serviços declarados.
-        self.servicos.append(self.tabela.iloc[15,0]\
+        self.servicos.append(tabela.iloc[15,0]\
             .replace('Total de Serviços Declarados: ','')\
                 .replace('Base de Cálculo S/ Ret',''))
 
     def gerar_df(self):
         return pd.DataFrame({
+            'Nome Empresa': self.nome_emp,
             'CNPJ': self.cnpj, 
             'Referência': self.referencia, 
             'Data Entrega': self.data,
@@ -272,8 +298,13 @@ class Reinf(Competencia):
 
         tabela = arquivo.loc[arquivo['Unnamed: 2'] == 'R-2099 - Fechamento dos Eventos Periódicos']
 
-        ##CNPJ
-        self.cnpj.append(tabela.iloc[0,1][:18])
+        prim_linha = self.tabela.iloc[0,0]
+
+        ##Num Domínio
+        self.num_dom.append(prim_linha[:prim_linha.find('-')-1])
+
+        ##Nome empresa
+        self.nome_emp.append(prim_linha[prim_linha.find('-')+2:])
 
         ##Num Domínio
         self.num_dom.append(tabela.iloc[0,0][:tabela.iloc[0,0].find('-')-1])
@@ -293,6 +324,7 @@ class Reinf(Competencia):
 
     def gerar_df(self):
         return pd.DataFrame({
+            'Nome Empresa': self.nome_emp,
             'CNPJ': self.cnpj, 
             'Num. Domínio': self.num_dom,
             'Referência': self.referencia,
@@ -304,11 +336,14 @@ class Reinf(Competencia):
 class Contribuicoes(Competencia):
     def __init__(self):
         super().__init__()
-        self.titulo = 'Contribuições'
+        self.titulo = 'EFD CONTRIBUIÇÕES'
 
     def add_linha(self, arquivo):
         tabela = tb.read_pdf(arquivo, pages=1, stream=True,\
                         relative_area=True ,area=[5,0,100,100])[0]
+
+        ##Nome Empresa
+        self.nome_emp.append(tabela.iloc[3,0].replace('Contribuinte: ',''))
 
         ##CNPJ
         self.cnpj.append(tabela.iloc[29,0])
@@ -325,6 +360,7 @@ class Contribuicoes(Competencia):
 
     def gerar_df(self):
         return pd.DataFrame({
+            'Nome Empresa': self.nome_emp,
             'CNPJ': self.cnpj, 
             'Referência': self.referencia,
             'Data Entrega': self.data,
@@ -336,11 +372,14 @@ class SimplesNacional(Competencia):
         super().__init__()
         self.valor = []
         self.anexo = []
-        self.titulo = 'Simples Nacional'
+        self.titulo = 'SIMPLES NACIONAL'
 
     def add_linha(self, arquivo):
         tabela = tb.read_pdf(arquivo, pages=1, stream=True,\
                         relative_area=True ,area=[0.5,0,100,100])[0]
+
+        ##Nome Empresa
+        self.nome_emp.append(tabela.iloc[18,0].replace('Estabelecimento: ','')[3:])
 
         ##CNPJ
         self.cnpj.append(tabela.iloc[0,0].replace('CNPJ: ',''))
@@ -359,6 +398,7 @@ class SimplesNacional(Competencia):
 
     def gerar_df(self):
         return pd.DataFrame({
+            'Nome Empresa': self.nome_emp,
             'CNPJ': self.cnpj, 
             'Referência': self.referencia,
             'Data Entrega': self.data,
