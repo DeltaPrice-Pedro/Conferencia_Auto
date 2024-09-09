@@ -7,8 +7,7 @@ from unidecode import unidecode
 import string
 import os
 
-import subprocess
-
+import sys
 from datetime import *
 from xlsxwriter import *
 import locale
@@ -104,6 +103,8 @@ class Writer:
         self.df_matriz = df_matriz
         self.LIN_INDEX = 6
         self.lin_data = self.LIN_INDEX + 1
+        self.dif_data = 2
+        self.dif_cnpj = 1
         self.titulo = titulo
 
     def abrir(self):
@@ -120,10 +121,11 @@ class Writer:
         self.ws = self.wb.add_worksheet('Sheet1')
         self.ws.set_column('A:A', 40)
         self.ws.set_column('B:B', 20)
-        self.ws.set_column('C:C', 10)
+        self.ws.set_column('C:C', 15)
         self.ws.set_column('D:D', 20)
         self.ws.set_column('E:E', 15)
         self.ws.set_column('F:F', 20)
+        self.ws.set_column('G:G', 20)
 
         self.cabecalho()
         self.table_ref()
@@ -132,8 +134,8 @@ class Writer:
         
         excluidos = self.preencher_data()
 
-        if excluidos != []:
-            messagebox.showinfo(title='Aviso', message= f"Os recibos das empresas: - {excluidos} - foram marcados por não constarem na matriz")
+        if excluidos != 0:
+            messagebox.showinfo(title='Aviso', message= f"{excluidos} recibos foram marcados por não constarem na matriz")
 
         self.wb.close()
 
@@ -152,7 +154,7 @@ class Writer:
     def table_ref(self):
         tam_df = len(self.df_matriz)+7
         ref = {
-            'Obrigadas:': f'=COUNTA($B8:$B{tam_df})',
+            'Obrigadas:': f'=COUNTA($A8:$A{tam_df})',
             'Entregues:': f'=COUNTIF($D8:$D{tam_df}, "ENVIADO")',
             'Não Entregues:': '=$E3 - $E4'
         }
@@ -164,9 +166,11 @@ class Writer:
                 self.wb.add_format({'border':1,'align':'center'}))
 
     def preencher_fields(self):
-        for index, columns in enumerate(list(self.df.columns)):
-            self.ws.write(self.LIN_INDEX, index, columns,\
+        self.ws.write(self.LIN_INDEX, 0, 'Nome Empresa',\
                 self.wb.add_format({'bold':True,'top':2, 'bg_color':'#a7b8ab','underline':True, 'align':'center'}))
+        
+        for col_index, columns in enumerate(list(self.df.columns)):
+            self.ws.write(self.LIN_INDEX, col_index + self.dif_cnpj, columns,self.wb.add_format({'bold':True,'top':2, 'bg_color':'#a7b8ab','underline':True, 'align':'center'}))
 
     def preencher_matriz(self):
         for index, row in self.df_matriz.iterrows():
@@ -179,27 +183,25 @@ class Writer:
             self.espacos_vazios(index)
 
     def espacos_vazios(self, index):
-        diferenca = 1
-        col_index = 2
-        for diferenca in range(len(self.df)+3):
-            self.ws.write(index + self.lin_data, col_index + diferenca, '',\
+        for col_index in range(len(self.df.columns) - self.dif_cnpj):
+            self.ws.write(index + self.lin_data, col_index + self.dif_data, '',\
                 self.wb.add_format({'border':3}))
 
     def preencher_data(self):
-        lista_excluidos = []
+        excluidos = 0
         cnpj_matriz = Matriz().cnpjs(self.df_matriz)
-        for index, row in self.df.iterrows():
-            if row['CNPJ'] not in cnpj_matriz.values:
-                formato = self.wb.add_format({'border':3, 'align':'center', 'bg_color':'yellow'})
-                lista_excluidos.append(row['Nome'])
-            else:
-                formato = self.wb.add_format({'border':3, 'align':'center'})
-                
-            for col_index, valor in enumerate(row):
-                self.ws.write(index + self.lin_data, col_index, valor, formato)
+        for index_recibo, row_recibo in self.df.iterrows():
+            for index_matriz, valor_cnpj in enumerate(cnpj_matriz):
+                if row_recibo['CNPJ'] == valor_cnpj:
+                    for col_index, valor in enumerate(row_recibo):
+                        self.ws.write(index_matriz + self.lin_data, col_index + self.dif_cnpj, valor, self.wb.add_format({'border':3, 'align':'center'}))
 
-        return lista_excluidos
+                    break
 
+                self.ws.write(index_matriz + self.lin_data, col_index + self.dif_cnpj, valor, self.wb.add_format({'border':3, 'align':'center', 'bg_color':'yellow'}))
+                    
+        return excluidos
+    
     def data_confe(self):
         data = f'{datetime.now().month - 1}/{datetime.now().year}'
         data_format = datetime.strptime(data, '%m/%Y')
@@ -207,7 +209,6 @@ class Writer:
 
 class Competencia:
     def __init__(self):
-        self.nome_emp = []
         self.cnpj = []
         self.referencia = []
         self.data = []
@@ -229,10 +230,6 @@ class Des(Competencia):
         ##CNPJ
         self.cnpj.append(self.tabela.iloc[0,1])
 
-        ##Nome Emp
-        self.nome_emp.append(self.tabela.iloc[1,0]\
-            .replace('Nome/Razão Social: ',''))
-
         ##Ref.
         self.referencia.append(self.tabela.iloc[3,0]\
             .replace('Referência: ','')\
@@ -253,7 +250,6 @@ class Des(Competencia):
 
     def gerar_df(self):
         return pd.DataFrame({
-            'Nome': self.nome_emp, 
             'CNPJ': self.cnpj, 
             'Referência': self.referencia, 
             'Data Entrega': self.data,
@@ -274,16 +270,11 @@ class Reinf(Competencia):
 
         tabela = arquivo.loc[arquivo['Unnamed: 2'] == 'R-2099 - Fechamento dos Eventos Periódicos']
 
-        prim_linha = tabela.iloc[0,0]
-
-        ##Num Domínio
-        self.num_dom.append(prim_linha[:prim_linha.find('-')-1])
-
-        ##Nome empresa
-        self.nome_emp.append(prim_linha[prim_linha.find('-')+2:])
-
         ##CNPJ
         self.cnpj.append(tabela.iloc[0,1][:18])
+
+        ##Num Domínio
+        self.num_dom.append(tabela.iloc[0,0][:tabela.iloc[0,0].find('-')-1])
 
         ##Ref
         self.referencia.append(tabela.iloc[0,2])
@@ -300,13 +291,77 @@ class Reinf(Competencia):
 
     def gerar_df(self):
         return pd.DataFrame({
-            #'Num. Domínio': self.num_dom,
-            'Nome': self.nome_emp, 
             'CNPJ': self.cnpj, 
+            'Num. Domínio': self.num_dom,
             'Referência': self.referencia,
             'Situação': self.situacao, 
             'Data Entrega': self.data,
             'Hora Entrega': self.hora,
+            })
+    
+class Contribuicoes(Competencia):
+    def __init__(self):
+        super().__init__()
+        self.titulo = ['Contribuições','Contribuicoes']
+
+    def add_linha(self, arquivo):
+        tabela = tb.read_pdf(arquivo, pages=1, stream=True,\
+                        relative_area=True ,area=[5,0,100,100])[0]
+
+        ##CNPJ
+        self.cnpj.append(tabela.iloc[29,0])
+
+        ##Ref
+        self.referencia.append(tabela.iloc[6,0][37:])
+
+        ##Data e Hora
+        col_dthr = tabela.iloc[30,0]
+
+        self.data.append(col_dthr[3:13])
+
+        self.hora.append(col_dthr[17:])
+
+    def gerar_df(self):
+        return pd.DataFrame({
+            'CNPJ': self.cnpj, 
+            'Referência': self.referencia,
+            'Data Entrega': self.data,
+            'Hora Entrega': self.hora,
+            })
+    
+class SimplesNacional(Competencia):
+    def __init__(self):
+        super().__init__()
+        self.valor = []
+        self.anexo = []
+        self.titulo = ['Simples Nacional', 'SN']
+
+    def add_linha(self, arquivo):
+        tabela = tb.read_pdf(arquivo, pages=1, stream=True,\
+                        relative_area=True ,area=[0.5,0,100,100])[0]
+
+        ##CNPJ
+        self.cnpj.append(tabela.iloc[0,0].replace('CNPJ: ',''))
+
+        ##Ref
+        self.referencia.append(tabela.iloc[4,0].replace('Período: ',''))
+
+        ##Data
+        self.data.append(str(tabela.iloc[0,1]).replace('Emissão: ',''))
+
+        ##Valor Tributo
+        self.valor.append(tabela.iloc[34,0].replace('Simples Nacional a recolher: ',''))
+
+        ##Anexo
+        self.anexo.append(tabela.iloc[19,0][7:15].strip())
+
+    def gerar_df(self):
+        return pd.DataFrame({
+            'CNPJ': self.cnpj, 
+            'Referência': self.referencia,
+            'Data Entrega': self.data,
+            'Valor Tributo': self.valor,
+            'Anexo': self.anexo
             })
 
 class App:
@@ -323,8 +378,15 @@ class App:
         self.window.configure(background='darkblue')
         self.window.resizable(False,False)
         self.window.geometry('860x500')
-        #self.window.iconbitmap('Z:\\18 - PROGRAMAS DELTA\\code\\imgs\\delta-icon.ico')
+        self.window.iconbitmap(self.resource_path('imgs\\delta-icon.ico'))
         self.window.title('Conversor de Extrato')
+
+    def resource_path(self,relative_path):
+        base_path = getattr(
+            sys,
+            '_MEIPASS',
+            os.path.dirname(os.path.abspath(__file__)))
+        return os.path.join(base_path, relative_path)
 
     def index(self):
         self.index = Frame(self.window, bd=4, bg='lightblue')
@@ -334,12 +396,12 @@ class App:
         Label(self.index, text='Conferência Automática', background='lightblue', font=('arial',30,'bold')).place(relx=0.23,rely=0.18,relheight=0.15)
 
         #Logo
-        # self.logo = PhotoImage(file='./code/imgs/deltaprice-hori.png')
+        self.logo = PhotoImage(file=self.resource_path('imgs\\deltaprice-hori.png'))
         
-        # self.logo = self.logo.subsample(4,4)
+        self.logo = self.logo.subsample(4,4)
         
-        # Label(self.window, image=self.logo, background='lightblue', border=0)\
-        #     .place(relx=0.205,rely=0.05,relwidth=0.7,relheight=0.2)
+        Label(self.window, image=self.logo, background='lightblue', border=0)\
+            .place(relx=0.205,rely=0.05,relwidth=0.7,relheight=0.2)
 
         #Labels e Entrys
         ###########Matriz
@@ -386,7 +448,7 @@ class App:
         
         self.declaracaoEntry = StringVar()
 
-        self.declaracaoEntryOpt = [self.a.to_string(), "REINF"]
+        self.declaracaoEntryOpt = ["DES", "REINF", "EFD COMPETÊNCIA", "SIMPLES NACIONAL"]
 
         self.declaracaoEntry.set('Escolha aqui')
 
@@ -413,6 +475,12 @@ class App:
             return Des()
         elif 'reinf' in valor.lower():
             return Reinf()
+        elif 'contribuições' in valor.lower()\
+            or 'contribuicoes' in valor.lower():
+            return Contribuicoes()
+        elif 'simples nacional' in valor.lower()\
+            or 'sn' in valor.lower():
+            return SimplesNacional()
         return ''            
         
     def declaracao_label(self):
@@ -429,7 +497,7 @@ class App:
         return obj_primeiro_item
 
     def executar(self):
-        try:       
+        # try:       
             cam_matriz = self.matriz.get_caminho()
             cam_recibo = self.recibos.get_caminho()
 
@@ -449,9 +517,9 @@ class App:
             
             Writer(df, df_matriz, declaracao.to_string()).abrir()
          
-        except (IndexError, TypeError):
-            messagebox.showerror(title='Aviso', message= 'Erro ao extrair o recibo, confira se a obrigação foi selecionada corretamente. Caso contrário, comunique ao desenvolvedor')
-        except Exception as error:
-            messagebox.showerror(title='Aviso', message= error)
+        # except (IndexError, TypeError):
+        #     messagebox.showerror(title='Aviso', message= 'Erro ao extrair o recibo, confira se a obrigação foi selecionada corretamente. Caso contrário, comunique ao desenvolvedor')
+        # except Exception as error:
+        #     messagebox.showerror(title='Aviso', message= error)
        
 App()
