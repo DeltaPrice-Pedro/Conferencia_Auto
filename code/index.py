@@ -191,14 +191,20 @@ class Writer:
         excluidos = 0
         cnpj_matriz = Matriz().cnpjs(self.df_matriz)
         for index_recibo, row_recibo in self.df.iterrows():
-            for index_matriz, valor_cnpj in enumerate(cnpj_matriz):
-                if row_recibo['CNPJ'] == valor_cnpj:
+            achado = False
+            print(f'{row_recibo['CNPJ']} - CNPJ procurado')
+            for index_matriz, row_matriz in self.df_matriz.iterrows():
+                print(f'{row_matriz['CNPJ']} - opções')
+                if row_recibo['CNPJ'] == row_matriz['CNPJ']:
+                    achado = True
                     for col_index, valor in enumerate(row_recibo):
                         self.ws.write(index_matriz + self.lin_data, col_index + self.dif_cnpj, valor, self.wb.add_format({'border':3, 'align':'center'}))
 
                     break
 
-                self.ws.write(index_matriz + self.lin_data, col_index + self.dif_cnpj, valor, self.wb.add_format({'border':3, 'align':'center', 'bg_color':'yellow'}))
+            if achado == False:
+                self.ws.write(5, 0, 'Nome Empresa', self.wb.add_format({'border':3, 'align':'center', 'bg_color':'yellow'}))
+                excluidos = excluidos + 1
                     
         return excluidos
     
