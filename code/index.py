@@ -68,9 +68,6 @@ class Matriz(Arquivo):
         return pd.read_excel(self.caminho, na_filter=False, usecols='A:B')\
             .sort_values('EMPRESA')
     
-    def cnpjs(self, arquivo):
-        return arquivo.loc[arquivo['CNPJ'] != '']
-
 class Recibo(Arquivo):
     def __init__(self):
         super().__init__()
@@ -189,7 +186,6 @@ class Writer:
 
     def preencher_data(self):
         excluidos = 0
-        cnpj_matriz = Matriz().cnpjs(self.df_matriz)
         for index_recibo, row_recibo in self.df.iterrows():
             achado = False
             print(f'{row_recibo['CNPJ']} - CNPJ procurado')
@@ -308,7 +304,7 @@ class Reinf(Competencia):
 class Contribuicoes(Competencia):
     def __init__(self):
         super().__init__()
-        self.titulo = ['Contribuições','Contribuicoes']
+        self.titulo = 'Contribuições'
 
     def add_linha(self, arquivo):
         tabela = tb.read_pdf(arquivo, pages=1, stream=True,\
@@ -340,7 +336,7 @@ class SimplesNacional(Competencia):
         super().__init__()
         self.valor = []
         self.anexo = []
-        self.titulo = ['Simples Nacional', 'SN']
+        self.titulo = 'Simples Nacional'
 
     def add_linha(self, arquivo):
         tabela = tb.read_pdf(arquivo, pages=1, stream=True,\
@@ -375,7 +371,16 @@ class App:
         self.window = window
         self.recibos = Recibo()
         self.matriz = Matriz()
-        self.a = Des()
+
+        self.ref = {
+            'des' : Des(),
+            'reinf' : Reinf(),
+            'contribuicoes': Contribuicoes(),
+            'contribuições' : Contribuicoes(),
+            'simples nacional': SimplesNacional(),
+            'sn': SimplesNacional()
+        }
+
         self.tela()
         self.index()
         window.mainloop()
@@ -415,7 +420,6 @@ class App:
             background='lightblue', font=(10))\
                 .place(relx=0.15,rely=0.33)
 
-        self.nome_Mat = ''
         self.matLabel = Label(self.index)
         self.matLabel.config(font=("Arial", 12, 'bold italic'), anchor= 's')
         self.matLabel.place(relx=0.21,rely=0.4,relwidth=0.7, relheight=0.055)
@@ -429,7 +433,6 @@ class App:
             background='lightblue', font=(10))\
                 .place(relx=0.15,rely=0.48)
 
-        self.nome_arq = ''
         self.arqLabel = Listbox(self.index, border= 0)
         self.arqLabel.config(font=("Arial", 8, 'bold italic'))
         self.arqLabel.place(relx=0.21,rely=0.55,relwidth=0.675, relheight=0.2)
@@ -454,7 +457,7 @@ class App:
         
         self.declaracaoEntry = StringVar()
 
-        self.declaracaoEntryOpt = ["DES", "REINF", "EFD COMPETÊNCIA", "SIMPLES NACIONAL"]
+        self.declaracaoEntryOpt = ["DES", "REINF", "CONTRIBUIÇÕES", "SIMPLES NACIONAL"]
 
         self.declaracaoEntry.set('Escolha aqui')
 
@@ -465,42 +468,23 @@ class App:
         Button(self.index, text='Gerar Conferencia',\
             command= lambda: self.executar())\
                 .place(relx=0.65,rely=0.85,relwidth=0.25,relheight=0.12)
-
-    def definir_declaracao(self):
-        if self.declaracao_valid(self.declaracaoEntry.get()) != '':
-            return self.declaracao_valid(self.declaracaoEntry.get())
         
-        elif self.declaracao_label() != '':
-            return self.declaracao_label()
-        
-        else:
-            raise Exception('Nome da obrigação não identificado, favor selecionar tipo')
-
-    def declaracao_valid(self, valor):
-        if 'des' in valor.lower():
-            return Des()
-        elif 'reinf' in valor.lower():
-            return Reinf()
-        elif 'contribuições' in valor.lower()\
-            or 'contribuicoes' in valor.lower():
-            return Contribuicoes()
-        elif 'simples nacional' in valor.lower()\
-            or 'sn' in valor.lower():
-            return SimplesNacional()
-        return ''            
-        
-    def declaracao_label(self):
+    def declaracao(self):
         itens_label = self.arqLabel.get(0,END)
-        obj_primeiro_item = self.declaracao_valid(itens_label[0])
+        lista_declara = []
+        for itens in itens_label:
+            lista_declara.append(self.declaracao_valid(itens))
 
-        if obj_primeiro_item != '':
-            for item in itens_label:
-                if obj_primeiro_item.to_string().lower() not in item.lower():
-                    raise Exception('Nem todos elementos são da mesma obrigação, favor selecionar tipo')
-        else:
-            return ''
+        if len(set(lista_declara)) != 1:
+            raise Exception('Nem todos elementos são da mesma obrigação, favor selecionar tipo')
 
-        return obj_primeiro_item
+        return lista_declara[0]
+    
+    def declaracao_valid(self, valor):
+        for chave, obj in self.ref.items():
+            if chave in valor.lower():
+                return obj
+        raise Exception('Nome da obrigação não identificado em todos os arquivos, favor selecionar tipo')
 
     def executar(self):
         # try:       
@@ -512,8 +496,8 @@ class App:
             elif cam_matriz == '':
                 raise Exception ('Insira alguma Matriz')
 
-            declaracao = self.definir_declaracao()
-
+            declaracao = self.declaracao()
+            
             for arquivo in cam_recibo:
                 declaracao.add_linha(arquivo)
 
