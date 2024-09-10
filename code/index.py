@@ -443,7 +443,7 @@ class App:
         self.window.configure(background='darkblue')
         self.window.resizable(False,False)
         self.window.geometry('860x500')
-        self.window.iconbitmap(self.resource_path('imgs\\delta-icon.ico'))
+        self.window.iconbitmap(self.resource_path('imgs\\logo-conferencia.ico'))
         self.window.title('Conversor de Extrato')
 
     def resource_path(self,relative_path):
