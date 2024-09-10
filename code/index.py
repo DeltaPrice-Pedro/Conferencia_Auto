@@ -360,7 +360,7 @@ class Contribuicoes(Competencia):
         self.nome_emp.append(tabela.iloc[1 + dif,0].replace('Contribuinte: ',''))
 
         ##CNPJ
-        self.cnpj.append(tabela.iloc[27 + dif,0][:18])
+        self.cnpj.append(tabela.iloc[2 + dif,0][6:24])
 
         ##Ref
         self.referencia.append(tabela.iloc[4 + dif,0][37:])
