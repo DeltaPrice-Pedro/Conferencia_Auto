@@ -7,6 +7,8 @@ from unidecode import unidecode
 import string
 import os
 
+import copy
+
 import sys
 from datetime import *
 from xlsxwriter import *
@@ -59,8 +61,8 @@ class Matriz(Arquivo):
 
             self.caminho = caminho_validado
 
-        except ValueError:
-            messagebox.showerror(title='Aviso', message= 'Operação cancelada')
+        except PermissionError:
+            messagebox.showerror(title='Aviso', message= 'O arquivo selecionado apresenta-se aberto em outra janela, favor fecha-la')
         except Exception as error:
             messagebox.showerror(title='Aviso', message= error)
 
@@ -87,10 +89,10 @@ class Recibo(Arquivo):
                 caminhos_validados.append(self.validar_entrada(item))
                 label.insert(END, f'{item[item.rfind('/') +1:]}\n')
 
-            self.caminho = caminhos_validados
+            self.caminho = caminhos_validados.copy()
 
-        except ValueError:
-            messagebox.showerror(title='Aviso', message= 'Operação cancelada')
+        except PermissionError:
+            messagebox.showerror(title='Aviso', message= 'O arquivo selecionado apresenta-se em aberto em outra janela, favor fecha-la')
         except Exception as error:
             messagebox.showerror(title='Aviso', message= error)
 
@@ -191,9 +193,9 @@ class Writer:
         excluidos = []
         for index_recibo, row_recibo in self.df.iterrows():
             achado = False
-            print(f'{row_recibo['CNPJ']} - CNPJ procurado')
+            #print(f'{row_recibo['CNPJ']} - CNPJ procurado')
             for index_matriz, row_matriz in self.df_matriz.iterrows():
-                print(f'{row_matriz['CNPJ']} - opções')
+                #print(f'{row_matriz['CNPJ']} - opções')
                 if row_recibo['CNPJ'] == row_matriz['CNPJ']:
                     achado = True
                     for col_index, valor in enumerate(row_recibo):
@@ -251,11 +253,16 @@ class Des(Competencia):
         tabela = tb.read_pdf(arquivo, pages= 1, stream= True,\
                         relative_area=True, area= [10,0,59,68])[0]
         
+        tabela.fillna('', inplace=True)
+
         ##Nome Emp
         self.nome_emp.append(tabela.iloc[1,0].replace('Nome/Razão Social: ',''))
 
         ##CNPJ
-        self.cnpj.append(tabela.iloc[0,1])
+        if tabela.iloc[0,1] == '':
+            self.cnpj.append(tabela.iloc[0,0][45:])
+        else:
+            self.cnpj.append(tabela.iloc[0,1])
 
         ##Ref.
         self.referencia.append(tabela.iloc[3,0]\
@@ -340,23 +347,30 @@ class Contribuicoes(Competencia):
 
     def add_linha(self, arquivo):
         tabela = tb.read_pdf(arquivo, pages=1, stream=True,\
-                        relative_area=True ,area=[5,0,100,100])[0]
+                        relative_area=True ,area=[10,0,100,100])[0]
+
+        dif = 0
+        dif_dthr = 0
+
+        if 'IDENTIFICAÇÃO' not in tabela.iloc[0,0]:
+            dif = 1
+            dif_dthr = 20
 
         ##Nome Empresa
-        self.nome_emp.append(tabela.iloc[3,0].replace('Contribuinte: ',''))
+        self.nome_emp.append(tabela.iloc[1 + dif,0].replace('Contribuinte: ',''))
 
         ##CNPJ
-        self.cnpj.append(tabela.iloc[29,0])
+        self.cnpj.append(tabela.iloc[27 + dif,0][:18])
 
         ##Ref
-        self.referencia.append(tabela.iloc[6,0][37:])
+        self.referencia.append(tabela.iloc[4 + dif,0][37:])
 
         ##Data e Hora
-        col_dthr = tabela.iloc[30,0]
+        col_dthr = tabela.iloc[28,0]
 
-        self.data.append(col_dthr[3:13])
+        self.data.append(col_dthr[3 + dif_dthr :13 + dif_dthr])
 
-        self.hora.append(col_dthr[17:])
+        self.hora.append(col_dthr[17 + dif_dthr:])
 
     def gerar_df(self):
         return pd.DataFrame({
@@ -512,22 +526,30 @@ class App:
     def declaracao(self):
         itens_label = self.arqLabel.get(0,END)
         lista_declara = []
+
+        primeiro_obj = copy.deepcopy(self.declaracao_valid(itens_label[0]))
+
         for itens in itens_label:
-            lista_declara.append(self.declaracao_valid(itens))
+            lista_declara.append(type(self.declaracao_valid(itens)))
 
         if len(set(lista_declara)) != 1:
             raise Exception('Nem todos elementos são da mesma obrigação, favor selecionar tipo')
 
-        return lista_declara[0]
+        return primeiro_obj
     
     def declaracao_valid(self, valor):
-        for chave, obj in self.ref.items():
-            if chave in valor.lower():
-                return obj
-        raise Exception('Nome da obrigação não identificado em todos os arquivos, favor selecionar tipo')
+        if self.declaracaoEntry.get() != 'Escolha aqui':
+            for key, obj in self.ref.items():
+                if key in self.declaracaoEntry.get().lower():
+                    return obj
+        else:
+            for chave, obj in self.ref.items():
+                if chave in valor.lower():
+                    return obj
+            raise Exception('Nome da obrigação não identificado em todos os arquivos, favor selecionar tipo')
 
     def executar(self):
-        # try:       
+        try:       
             cam_matriz = self.matriz.get_caminho()
             cam_recibo = self.recibos.get_caminho()
 
@@ -547,9 +569,9 @@ class App:
             
             Writer(df, df_matriz, declaracao.to_string()).abrir()
          
-        # except (IndexError, TypeError):
-        #     messagebox.showerror(title='Aviso', message= 'Erro ao extrair o recibo, confira se a obrigação foi selecionada corretamente. Caso contrário, comunique ao desenvolvedor')
-        # except Exception as error:
-        #     messagebox.showerror(title='Aviso', message= error)
+        except (IndexError, TypeError):
+            messagebox.showerror(title='Aviso', message= 'Erro ao extrair o recibo, confira se a obrigação foi selecionada corretamente. Caso contrário, comunique ao desenvolvedor')
+        except Exception as error:
+            messagebox.showerror(title='Aviso', message= error)
        
 App()
