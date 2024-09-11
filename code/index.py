@@ -9,6 +9,7 @@ import os
 
 import copy
 
+from openpyxl import *
 import sys
 from datetime import *
 from xlsxwriter import *
@@ -68,6 +69,9 @@ class Matriz(Arquivo):
 
     def ler(self):
         return pd.read_excel(self.caminho, na_filter=False, usecols='A:B')
+    
+    def load(self):
+        return load_workbook(self.caminho)
     
 class Recibo(Arquivo):
     def __init__(self):
@@ -241,17 +245,49 @@ class Excluidos(Writer):
             for col_index, valor in enumerate(row_recibo):
                 self.ws.write(index_recibo + self.lin_data, col_index, valor, self.wb.add_format({'border':3, 'align':'center', 'bg_color':'yellow'}))
 
-class Incremento(Relatorio):
-    def __init__(self, df, df_matriz, titulo):
-        super().__init__(df, df_matriz, titulo)
+class Incremento(Writer):
+    def __init__(self, df, df_matriz, wb_completo, titulo):
+        super().__init__(df, titulo)
 
-    def gerar_arquivo(self):
+        self.df_matriz = df_matriz
         self.df_matriz.columns = ["EMPRESA","CNPJ"]
         self.df_matriz = self.df_matriz.drop([0,1,2,3,4,5,6])\
             .reset_index(drop=True)
-        self.preencher_data()
+        
+        self.wb = wb_completo
+        self.ws = self.wb['Relacionados']
 
-        self.wb.close() 
+    def gerar_arquivo(self):
+        excluidos = self.data()
+
+        if len(excluidos) != 0:
+            messagebox.showinfo(title='Aviso', message= f'{len(excluidos)} empresas foram inseridas na aba "Não relacionadas" por não constarem na matriz')
+
+            Excluidos(self.df, self.titulo, self.wb, excluidos).preencher()
+
+        self.file = asksaveasfilename(title='Favor selecionar a pasta onde será salvo', filetypes=((".xlsx","*.xlsx"),))
+
+        self.wb.save(self.file+'.xlsx')
+
+    def data(self):
+        excluidos = []
+        for index_recibo, row_recibo in self.df.iterrows():
+            achado = False
+            #print(f'{row_recibo['CNPJ']} - CNPJ procurado')
+            for index_matriz, row_matriz in self.df_matriz.iterrows():
+                #print(f'{row_matriz['CNPJ']} - opções')
+                if row_recibo['CNPJ'] == row_matriz['CNPJ']:
+                    achado = True
+                    for col_index, valor in enumerate(row_recibo):
+                        self.ws.cell\
+                            (index_matriz + self.lin_data+1, col_index+1, valor)
+
+                    break
+
+            if achado == False:
+                excluidos.append(row_recibo)
+                    
+        return excluidos
 
 class Competencia:
     def __init__(self):
@@ -597,7 +633,8 @@ class App:
             df_matriz = self.matriz.ler()
             
             if self.valIncrement.get():
-                obj = Incremento(df, df_matriz, declaracao.to_string())
+                wb_completo = self.matriz.load()
+                obj = Incremento(df, df_matriz, wb_completo, declaracao.to_string())
             else:
                 obj = Relatorio(df, df_matriz, declaracao.to_string())
 
