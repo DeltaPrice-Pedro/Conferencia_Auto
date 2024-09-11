@@ -97,80 +97,21 @@ class Recibo(Arquivo):
             messagebox.showerror(title='Aviso', message= error)
 
 class Writer:
-    def __init__(self, df, df_matriz, titulo):
+    def __init__(self, df, titulo):
         self.df = df
-        self.df_matriz = df_matriz
+        self.titulo = titulo
+
         self.LIN_INDEX = 6
         self.lin_data = self.LIN_INDEX + 1
         self.dif_data = 2
         self.dif_cnpj = 1
-        self.titulo = titulo
 
     def abrir(self):
-        file = asksaveasfilename(title='Favor selecionar a pasta onde será salvo', filetypes=((".xlsx","*.xlsx"),))
-
-        self.gerar_arquivo(file)
-
         messagebox.showinfo(title='Aviso', message='Abrindo o arquivo gerado!')
 
-        os.startfile(file+'.xlsx')
-
-    def gerar_arquivo(self, nome_arq):
-        self.wb = Workbook(nome_arq + '.xlsx')
-        self.ws = self.wb.add_worksheet('Relacionados')
-        self.ws.set_column('A:A', 40)
-        self.ws.set_column('B:B', 20)
-        self.ws.set_column('C:C', 15)
-        self.ws.set_column('D:D', 20)
-        self.ws.set_column('E:E', 15)
-        self.ws.set_column('F:F', 20)
-        self.ws.set_column('G:G', 20)
-
-        self.cabecalho()
-        self.table_ref()
-        self.preencher_fields()
-        self.preencher_matriz()
-        
-        excluidos = self.preencher_data()
-
-        if len(excluidos) != 0:
-            messagebox.showinfo(title='Aviso', message= f'{len(excluidos)} empresas foram inseridas na aba "Não relacionadas" por não constarem na matriz')
-
-            self.ws_excluidos = self.wb.add_worksheet('Não relacionados')
-
-            self.preencher_excluidos(excluidos)
-
-        self.wb.close()
-
-    def cabecalho(self):
-        self.ws.write(0,0,f'RELATÓRIO DE CONFERÊNCIA {self.titulo}',\
-            self.wb.add_format({'bold': True, 'font_size': 26}))
-
-        self.ws.write(2,0,'Competência',\
-            self.wb.add_format({'bold':True,'align':'right','font_size': 16}))
-        self.ws.write(2,1, self.data_confe())
-
-        self.ws.write(3,0,'Data Entrega',\
-            self.wb.add_format({'bold':True,'align':'right','font_size': 16}))
-        self.ws.write(3,1, datetime.now().strftime("%d/%m/%Y"))
-
-    def table_ref(self):
-        tam_df = len(self.df_matriz)+7
-        ref = {
-            'Obrigadas:': f'=COUNTA($A8:$A{tam_df})',
-            'Entregues:': f'=COUNTA($C8:$C{tam_df})',
-            'Não Entregues:': '=$E3 - $E4'
-        }
-
-        #f'=COUNTIF($D8:$D{tam_df}, "ENVIADO")'
-        for index, text in enumerate(ref.items()):
-            self.ws.write(index+2,3, text[0],\
-                self.wb.add_format({'bold':True,'border':1,'align':'right'}))
-            
-            self.ws.write(index+2,4, text[1],\
-                self.wb.add_format({'border':1,'align':'center'}))
-
-    def preencher_fields(self):
+        os.startfile(self.file+'.xlsx')
+    
+    def colunas(self):
         for col_index, columns in enumerate(list(self.df.columns)):
             self.ws.write(self.LIN_INDEX, col_index, columns,self.wb.add_format({'bold':True,'top':2, 'bg_color':'#a7b8ab','underline':True, 'align':'center'}))
 
@@ -208,29 +149,98 @@ class Writer:
                     
         return excluidos
     
-    def preencher_excluidos(self, excluidos):
-        self.ws_excluidos.set_column('A:A', 40)
-        self.ws_excluidos.set_column('B:B', 20)
-        self.ws_excluidos.set_column('C:C', 15)
-        self.ws_excluidos.set_column('D:D', 20)
-        self.ws_excluidos.set_column('E:E', 15)
-        self.ws_excluidos.set_column('F:F', 20)
-        self.ws_excluidos.set_column('G:G', 20)
-
-        self.ws_excluidos.write(0,0,f'EMPRESAS NÃO RELACIONADAS {self.titulo}',\
-            self.wb.add_format({'bold': True, 'font_size': 26}))
-        
-        for col_index, columns in enumerate(list(self.df.columns)):
-            self.ws_excluidos.write(self.LIN_INDEX, col_index, columns,self.wb.add_format({'bold':True,'top':2, 'bg_color':'#a7b8ab','underline':True, 'align':'center'}))
-
-        for index_recibo, row_recibo in enumerate(excluidos):
-            for col_index, valor in enumerate(row_recibo):
-                self.ws_excluidos.write(index_recibo + self.lin_data, col_index, valor, self.wb.add_format({'border':3, 'align':'center', 'bg_color':'yellow'}))
-    
     def data_confe(self):
         data = f'{datetime.now().month - 1}/{datetime.now().year}'
         data_format = datetime.strptime(data, '%m/%Y')
         return data_format.strftime("%B/%Y".capitalize())
+    
+class Relatorio(Writer):
+    def __init__(self, df, df_matriz, titulo):
+        super().__init__(df, titulo)
+        self.df_matriz = df_matriz
+
+        self.file = asksaveasfilename(title='Favor selecionar a pasta onde será salvo', filetypes=((".xlsx","*.xlsx"),))
+
+        self.wb = Workbook(self.file + '.xlsx')
+        self.ws = self.wb.add_worksheet('Relacionados')
+        self.ws.set_column('A:A', 40)
+        self.ws.set_column('B:B', 20)
+        self.ws.set_column('C:C', 15)
+        self.ws.set_column('D:D', 20)
+        self.ws.set_column('E:E', 15)
+        self.ws.set_column('F:F', 20)
+        self.ws.set_column('G:G', 20)
+
+    def gerar_arquivo(self):
+        self.cabecalho()
+        self.table_ref()
+        self.colunas()
+        self.preencher_matriz()
+        
+        excluidos = self.preencher_data()
+
+        if len(excluidos) != 0:
+            messagebox.showinfo(title='Aviso', message= f'{len(excluidos)} empresas foram inseridas na aba "Não relacionadas" por não constarem na matriz')
+
+            Excluidos(self.df, self.titulo, self.wb, excluidos).preencher()
+
+        self.wb.close()    
+
+    def cabecalho(self):
+        self.ws.write(0,0,f'RELATÓRIO DE CONFERÊNCIA {self.titulo}',\
+            self.wb.add_format({'bold': True, 'font_size': 26}))
+
+        self.ws.write(2,0,'Competência',\
+            self.wb.add_format({'bold':True,'align':'right','font_size': 16}))
+        self.ws.write(2,1, self.data_confe())
+
+        self.ws.write(3,0,'Data Entrega',\
+            self.wb.add_format({'bold':True,'align':'right','font_size': 16}))
+        self.ws.write(3,1, datetime.now().strftime("%d/%m/%Y"))
+
+    def table_ref(self):
+        tam_df = len(self.df_matriz)+7
+        ref = {
+            'Obrigadas:': f'=COUNTA($A8:$A{tam_df})',
+            'Entregues:': f'=COUNTA($C8:$C{tam_df})',
+            'Não Entregues:': '=$E3 - $E4'
+        }
+
+        #f'=COUNTIF($D8:$D{tam_df}, "ENVIADO")'
+        for index, text in enumerate(ref.items()):
+            self.ws.write(index+2,3, text[0],\
+                self.wb.add_format({'bold':True,'border':1,'align':'right'}))
+            
+            self.ws.write(index+2,4, text[1],\
+                self.wb.add_format({'border':1,'align':'center'}))
+
+class Excluidos(Writer):
+    def __init__(self, df, titulo, wb, data):
+        super().__init__(df, titulo)
+        self.data = data
+        self.wb = wb
+
+        self.ws = self.wb.add_worksheet('Não relacionados')
+        self.ws.set_column('A:A', 40)
+        self.ws.set_column('B:B', 20)
+        self.ws.set_column('C:C', 15)
+        self.ws.set_column('D:D', 20)
+        self.ws.set_column('E:E', 15)
+        self.ws.set_column('F:F', 20)
+        self.ws.set_column('G:G', 20)
+
+    def preencher(self):
+        self.__titulo()
+        self.colunas()
+        self.__excluidos()
+
+    def __titulo(self):
+        self.ws.write(0,0,f'EMPRESAS NÃO RELACIONADAS {self.titulo}', self.wb.add_format({'bold': True, 'font_size': 26}))
+
+    def __excluidos(self):
+        for index_recibo, row_recibo in enumerate(self.data):
+            for col_index, valor in enumerate(row_recibo):
+                self.ws.write(index_recibo + self.lin_data, col_index, valor, self.wb.add_format({'border':3, 'align':'center', 'bg_color':'yellow'}))
 
 class Competencia:
     def __init__(self):
@@ -443,7 +453,7 @@ class App:
         self.window.configure(background='darkblue')
         self.window.resizable(False,False)
         self.window.geometry('860x500')
-        self.window.iconbitmap(self.resource_path('imgs\\logo-conferencia.ico'))
+        self.window.iconbitmap(self.resource_path('imgs\\conf-icon.ico'))
         self.window.title('Conversor de Extrato')
 
     def resource_path(self,relative_path):
@@ -567,7 +577,11 @@ class App:
 
             df_matriz = self.matriz.ler()
             
-            Writer(df, df_matriz, declaracao.to_string()).abrir()
+            relat = Relatorio(df, df_matriz, declaracao.to_string())
+
+            relat.gerar_arquivo()
+            
+            relat.abrir()
          
         except (IndexError, TypeError):
             messagebox.showerror(title='Aviso', message= 'Erro ao extrair o recibo, confira se a obrigação foi selecionada corretamente. Caso contrário, comunique ao desenvolvedor')
