@@ -152,11 +152,6 @@ class Writer:
                     
         return excluidos
     
-    def data_confe(self):
-        data = f'{datetime.now().month - 1}/{datetime.now().year}'
-        data_format = datetime.strptime(data, '%m/%Y')
-        return data_format.strftime("%B/%Y".capitalize())
-    
 class Relatorio(Writer):
     def __init__(self, df, df_matriz, titulo):
         super().__init__(df, titulo)
@@ -200,6 +195,11 @@ class Relatorio(Writer):
         self.ws.write(3,0,'Data Entrega',\
             self.wb.add_format({'bold':True,'align':'right','font_size': 16}))
         self.ws.write(3,1, datetime.now().strftime("%d/%m/%Y"))
+
+    def data_confe(self):
+        data = f'{datetime.now().month - 1}/{datetime.now().year}'
+        data_format = datetime.strptime(data, '%m/%Y')
+        return data_format.strftime("%B/%Y".capitalize())
 
     def __table_ref(self):
         tam_df = len(self.df_matriz)+7
