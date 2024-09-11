@@ -67,8 +67,7 @@ class Matriz(Arquivo):
             messagebox.showerror(title='Aviso', message= error)
 
     def ler(self):
-        return pd.read_excel(self.caminho, na_filter=False, usecols='A:B')\
-            .sort_values('EMPRESA')
+        return pd.read_excel(self.caminho, na_filter=False, usecols='A:B')
     
 class Recibo(Arquivo):
     def __init__(self):
@@ -172,10 +171,10 @@ class Relatorio(Writer):
         self.ws.set_column('G:G', 20)
 
     def gerar_arquivo(self):
-        self.cabecalho()
-        self.table_ref()
+        self.__cabecalho()
+        self.__table_ref()
         self.colunas()
-        self.preencher_matriz()
+        self.__preencher_matriz()
         
         excluidos = self.preencher_data()
 
@@ -186,7 +185,7 @@ class Relatorio(Writer):
 
         self.wb.close()    
 
-    def cabecalho(self):
+    def __cabecalho(self):
         self.ws.write(0,0,f'RELATÓRIO DE CONFERÊNCIA {self.titulo}',\
             self.wb.add_format({'bold': True, 'font_size': 26}))
 
@@ -198,7 +197,7 @@ class Relatorio(Writer):
             self.wb.add_format({'bold':True,'align':'right','font_size': 16}))
         self.ws.write(3,1, datetime.now().strftime("%d/%m/%Y"))
 
-    def table_ref(self):
+    def __table_ref(self):
         tam_df = len(self.df_matriz)+7
         ref = {
             'Obrigadas:': f'=COUNTA($A8:$A{tam_df})',
@@ -241,6 +240,18 @@ class Excluidos(Writer):
         for index_recibo, row_recibo in enumerate(self.data):
             for col_index, valor in enumerate(row_recibo):
                 self.ws.write(index_recibo + self.lin_data, col_index, valor, self.wb.add_format({'border':3, 'align':'center', 'bg_color':'yellow'}))
+
+class Incremento(Relatorio):
+    def __init__(self, df, df_matriz, titulo):
+        super().__init__(df, df_matriz, titulo)
+
+    def gerar_arquivo(self):
+        self.df_matriz.columns = ["EMPRESA","CNPJ"]
+        self.df_matriz = self.df_matriz.drop([0,1,2,3,4,5,6])\
+            .reset_index(drop=True)
+        self.preencher_data()
+
+        self.wb.close() 
 
 class Competencia:
     def __init__(self):
@@ -478,6 +489,14 @@ class App:
         Label(self.window, image=self.logo, background='lightblue', border=0)\
             .place(relx=0.205,rely=0.05,relwidth=0.7,relheight=0.2)
 
+        self.valIncrement = StringVar()
+
+        self.valIncrement.set(False)
+
+        Radiobutton(self.index, text="Criar novo Relatório", value=False, variable= self.valIncrement).place(relx=0.45,rely=0.33)
+
+        Radiobutton(self.index, text="Incrementar em Relatório antigo", value=True, variable= self.valIncrement).place(relx=0.65,rely=0.33)
+
         #Labels e Entrys
         ###########Matriz
         Label(self.index, text='Insira aqui a Matriz/Referência:',\
@@ -577,11 +596,14 @@ class App:
 
             df_matriz = self.matriz.ler()
             
-            relat = Relatorio(df, df_matriz, declaracao.to_string())
+            if self.valIncrement.get():
+                obj = Incremento(df, df_matriz, declaracao.to_string())
+            else:
+                obj = Relatorio(df, df_matriz, declaracao.to_string())
 
-            relat.gerar_arquivo()
+            obj.gerar_arquivo()
             
-            relat.abrir()
+            obj.abrir()
          
         except (IndexError, TypeError):
             messagebox.showerror(title='Aviso', message= 'Erro ao extrair o recibo, confira se a obrigação foi selecionada corretamente. Caso contrário, comunique ao desenvolvedor')
