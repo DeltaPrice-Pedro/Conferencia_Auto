@@ -178,7 +178,7 @@ class Relatorio(Writer):
         self.__cabecalho()
         self.__table_ref()
         self.colunas()
-        self.__preencher_matriz()
+        self.preencher_matriz()
         
         excluidos = self.preencher_data()
 
@@ -246,12 +246,12 @@ class Excluidos(Writer):
                 self.ws.write(index_recibo + self.lin_data, col_index, valor, self.wb.add_format({'border':3, 'align':'center', 'bg_color':'yellow'}))
 
 class Incremento(Writer):
-    def __init__(self, df, df_matriz, wb_completo, titulo):
+    def __init__(self, df, df_relatorio, wb_completo, titulo):
         super().__init__(df, titulo)
 
-        self.df_matriz = df_matriz
-        self.df_matriz.columns = ["EMPRESA","CNPJ"]
-        self.df_matriz = self.df_matriz.drop([0,1,2,3,4,5,6])\
+        self.df_relatorio = df_relatorio
+        self.df_relatorio.columns = ["EMPRESA","CNPJ"]
+        self.df_relatorio = self.df_relatorio.drop([0,1,2,3,4,5,6])\
             .reset_index(drop=True)
         
         self.wb = wb_completo
@@ -274,7 +274,7 @@ class Incremento(Writer):
         for index_recibo, row_recibo in self.df.iterrows():
             achado = False
             #print(f'{row_recibo['CNPJ']} - CNPJ procurado')
-            for index_matriz, row_matriz in self.df_matriz.iterrows():
+            for index_matriz, row_matriz in self.df_relatorio.iterrows():
                 #print(f'{row_matriz['CNPJ']} - opções')
                 if row_recibo['CNPJ'] == row_matriz['CNPJ']:
                     achado = True
@@ -525,7 +525,7 @@ class App:
         Label(self.window, image=self.logo, background='lightblue', border=0)\
             .place(relx=0.205,rely=0.05,relwidth=0.7,relheight=0.2)
 
-        self.valIncrement = StringVar()
+        self.valIncrement = BooleanVar()
 
         self.valIncrement.set(False)
 
@@ -632,7 +632,7 @@ class App:
 
             df_matriz = self.matriz.ler()
             
-            if self.valIncrement.get():
+            if self.valIncrement.get() == True:
                 wb_completo = self.matriz.load()
                 obj = Incremento(df, df_matriz, wb_completo, declaracao.to_string())
             else:
