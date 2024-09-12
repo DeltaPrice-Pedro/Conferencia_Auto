@@ -10,6 +10,7 @@ import os
 import copy
 
 from openpyxl import *
+from openpyxl.styles import Alignment
 import sys
 from datetime import *
 from xlsxwriter import *
@@ -64,6 +65,8 @@ class Matriz(Arquivo):
 
         except PermissionError:
             messagebox.showerror(title='Aviso', message= 'O arquivo selecionado apresenta-se aberto em outra janela, favor fecha-la')
+        except FileExistsError:
+            messagebox.showerror(title='Aviso', message= 'O arquivo selecionado já apresenta uma versão sem acento, favor usar tal versão ou apagar uma delas')
         except Exception as error:
             messagebox.showerror(title='Aviso', message= error)
 
@@ -96,6 +99,8 @@ class Recibo(Arquivo):
 
         except PermissionError:
             messagebox.showerror(title='Aviso', message= 'O arquivo selecionado apresenta-se em aberto em outra janela, favor fecha-la')
+        except FileExistsError:
+            messagebox.showerror(title='Aviso', message= 'O arquivo selecionado já apresenta uma versão sem acento, favor usar tal versão ou apagar uma delas')
         except Exception as error:
             messagebox.showerror(title='Aviso', message= error)
 
@@ -152,12 +157,24 @@ class Writer:
                     
         return excluidos
     
+    def nomear_arq(self):
+        nome_arq = asksaveasfilename(title='Favor selecionar a pasta onde será salvo', filetypes=((".xlsx","*.xlsx"),))
+
+        if nome_arq == '':
+            if messagebox.askyesno(title='Aviso', message= 'Deseja cancelar esta operação?') == True:
+                raise Exception ('Operação cancelada!')
+            else:
+                return self.nomear_arq()
+            
+        return nome_arq
+    
+    
 class Relatorio(Writer):
     def __init__(self, df, df_matriz, titulo):
         super().__init__(df, titulo)
         self.df_matriz = df_matriz
 
-        self.file = asksaveasfilename(title='Favor selecionar a pasta onde será salvo', filetypes=((".xlsx","*.xlsx"),))
+        self.file = self.nomear_arq()
 
         self.wb = Workbook(self.file + '.xlsx')
         self.ws = self.wb.add_worksheet('Relacionados')
@@ -249,8 +266,11 @@ class Incremento(Writer):
     def __init__(self, df, df_relatorio, wb_completo, titulo):
         super().__init__(df, titulo)
 
+        titulo_arq = df_relatorio.columns[0]
+        if self.titulo not in titulo_arq:
+            raise Exception('O relatório inserido é de uma obrigação diferente do recibo em questão')
+
         self.df_relatorio = df_relatorio
-        self.df_relatorio.columns = ["EMPRESA","CNPJ"]
         self.df_relatorio = self.df_relatorio.drop([0,1,2,3,4,5,6])\
             .reset_index(drop=True)
         
@@ -265,7 +285,7 @@ class Incremento(Writer):
 
             Excluidos(self.df, self.titulo, self.wb, excluidos).preencher()
 
-        self.file = asksaveasfilename(title='Favor selecionar a pasta onde será salvo', filetypes=((".xlsx","*.xlsx"),))
+        self.file = self.nomear_arq()
 
         self.wb.save(self.file+'.xlsx')
 
@@ -276,12 +296,11 @@ class Incremento(Writer):
             #print(f'{row_recibo['CNPJ']} - CNPJ procurado')
             for index_matriz, row_matriz in self.df_relatorio.iterrows():
                 #print(f'{row_matriz['CNPJ']} - opções')
-                if row_recibo['CNPJ'] == row_matriz['CNPJ']:
+                if row_recibo.iloc[1] == row_matriz.iloc[1]:
                     achado = True
                     for col_index, valor in enumerate(row_recibo):
                         self.ws.cell\
-                            (index_matriz + self.lin_data+1, col_index+1, valor)
-
+                            (index_matriz + self.lin_data+2, col_index+1, valor).alignment = Alignment(horizontal='center')
                     break
 
             if achado == False:
@@ -362,7 +381,7 @@ class Reinf(Competencia):
 
         tabela = arquivo.loc[arquivo['Unnamed: 2'] == 'R-2099 - Fechamento dos Eventos Periódicos']
 
-        prim_linha = self.tabela.iloc[0,0]
+        prim_linha = tabela.iloc[0,0]
 
         ##Num Domínio
         self.num_dom.append(prim_linha[:prim_linha.find('-')-1])
@@ -370,8 +389,8 @@ class Reinf(Competencia):
         ##Nome empresa
         self.nome_emp.append(prim_linha[prim_linha.find('-')+2:])
 
-        ##Num Domínio
-        self.num_dom.append(tabela.iloc[0,0][:tabela.iloc[0,0].find('-')-1])
+        ##CNPJ
+        self.cnpj.append(tabela.iloc[0,1][:18])
 
         ##Ref
         self.referencia.append(tabela.iloc[0,2])
@@ -462,7 +481,7 @@ class SimplesNacional(Competencia):
         self.data.append(str(tabela.iloc[0,1]).replace('Emissão: ',''))
 
         ##Valor Tributo
-        self.valor.append(tabela.iloc[34,0].replace('Simples Nacional a recolher: ',''))
+        self.valor.append(tabela.iloc[len(tabela)-2,0].replace('Simples Nacional a recolher: ',''))
 
         ##Anexo
         self.anexo.append(tabela.iloc[19,0][7:15].strip())
@@ -644,6 +663,8 @@ class App:
          
         except (IndexError, TypeError):
             messagebox.showerror(title='Aviso', message= 'Erro ao extrair o recibo, confira se a obrigação foi selecionada corretamente. Caso contrário, comunique ao desenvolvedor')
+        except KeyError:
+            messagebox.showerror(title='Aviso', message= 'Relatório ou Matriz inserido é inválido, certifique-se que inseriu o documento correto')
         except Exception as error:
             messagebox.showerror(title='Aviso', message= error)
        
