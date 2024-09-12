@@ -42,8 +42,8 @@ class Arquivo:
         os.renames(caminho, caminho_uni)
         return caminho_uni
     
-    def get_caminho(self):
-        return self.caminho
+    def envio_invalido(self):
+        return True if len(self.caminho) == 0 else False
 
 class Matriz(Arquivo):
     def __init__(self):
@@ -81,6 +81,9 @@ class Recibo(Arquivo):
         super().__init__()
         self.tipos_validos = 'pdf'
         self.caminho = []
+
+    def get_caminho(self):
+        return self.caminho
 
     def inserir(self, label):
         try:
@@ -633,18 +636,15 @@ class App:
             raise Exception('Nome da obrigação não identificado em todos os arquivos, favor selecionar tipo')
 
     def executar(self):
-        try:       
-            cam_matriz = self.matriz.get_caminho()
-            cam_recibo = self.recibos.get_caminho()
-
-            if cam_recibo == []:
-                raise Exception ('Insira algum Recibo')
-            elif cam_matriz == '':
+        try:   
+            if self.matriz.envio_invalido():
                 raise Exception ('Insira alguma Matriz')
+            elif self.recibos.envio_invalido():
+                raise Exception ('Insira algum Recibo')
 
             declaracao = self.declaracao()
             
-            for arquivo in cam_recibo:
+            for arquivo in self.recibos.get_caminho():
                 declaracao.add_linha(arquivo)
 
             df = declaracao.gerar_df()
