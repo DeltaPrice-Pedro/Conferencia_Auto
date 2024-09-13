@@ -499,6 +499,57 @@ class SimplesNacional(Competencia):
             'Anexo': self.anexo
             })
 
+class DCTF(Competencia):
+    def __init__(self):
+        super().__init__()
+        self.valor = []
+        self.titulo = 'DCTF'
+
+    def sum_saldos(self, arquivo):
+        valor_valido = []
+        for row in arquivo.iloc[10:21,0]:
+            pos_vir = row.find(',')
+            valor = row[pos_vir+3:].replace('.','').replace(',','.').strip()
+            if valor[:4] != '0.00':
+                valor_valido.append(float(valor))
+        if len(valor_valido) != 0:
+            return sum(valor_valido)
+        return 0
+
+    def add_linha(self, arquivo):
+        tabela = tb.read_pdf(arquivo, pages=1, stream=True, guess=False)[0]
+
+        ##Nome
+        self.nome_emp.append(tabela.iloc[4,0].replace('Nome Empresarial: ',''))
+
+        ##CNPJ
+        self.cnpj.append(tabela.iloc[3,0][6:24])
+
+        ##Ref
+        self.referencia.append(tabela.iloc[3,0][34:])
+
+        data_row = tabela.iloc[54,0]\
+            .replace('exigido este número de recibo: em ','')
+
+        ##Data
+        self.data.append(data_row[:10])
+
+        ##Hora
+        self.hora.append(data_row[13:])
+
+        ##Valor Tributo
+        self.valor.append(f'{self.sum_saldos(tabela):.2f}')
+
+    def gerar_df(self):
+        return pd.DataFrame({
+            'Nome Empresa': self.nome_emp,
+            'CNPJ': self.cnpj,
+            'Referência': self.referencia,
+            'Data': self.data,
+            'Hora': self.hora,
+            'Saldo em Aberto': self.valor
+            })
+
 class App:
     def __init__(self):
         self.window = window
@@ -511,7 +562,8 @@ class App:
             'contribuicoes': Contribuicoes(),
             'contribuições' : Contribuicoes(),
             'simples nacional': SimplesNacional(),
-            'sn': SimplesNacional()
+            'sn': SimplesNacional(),
+            'dctf': DCTF()
         }
 
         self.tela()
@@ -598,7 +650,7 @@ class App:
         
         self.declaracaoEntry = StringVar()
 
-        self.declaracaoEntryOpt = ["DES", "REINF", "CONTRIBUIÇÕES", "SIMPLES NACIONAL"]
+        self.declaracaoEntryOpt = ["DES", "REINF", "CONTRIBUIÇÕES", "SIMPLES NACIONAL", "DCTF"]
 
         self.declaracaoEntry.set('Escolha aqui')
 
@@ -636,7 +688,7 @@ class App:
             raise Exception('Nome da obrigação não identificado em todos os arquivos, favor selecionar tipo')
 
     def executar(self):
-        try:   
+        # try:   
             if self.matriz.envio_invalido():
                 raise Exception ('Insira alguma Matriz')
             elif self.recibos.envio_invalido():
@@ -661,11 +713,11 @@ class App:
             
             obj.abrir()
          
-        except (IndexError, TypeError):
-            messagebox.showerror(title='Aviso', message= 'Erro ao extrair o recibo, confira se a obrigação foi selecionada corretamente. Caso contrário, comunique ao desenvolvedor')
-        except KeyError:
-            messagebox.showerror(title='Aviso', message= 'Relatório ou Matriz inserido é inválido, certifique-se que inseriu o documento correto')
-        except Exception as error:
-            messagebox.showerror(title='Aviso', message= error)
+        # except (IndexError, TypeError):
+        #     messagebox.showerror(title='Aviso', message= 'Erro ao extrair o recibo, confira se a obrigação foi selecionada corretamente. Caso contrário, comunique ao desenvolvedor')
+        # except KeyError:
+        #     messagebox.showerror(title='Aviso', message= 'Relatório ou Matriz inserido é inválido, certifique-se que inseriu o documento correto')
+        # except Exception as error:
+        #     messagebox.showerror(title='Aviso', message= error)
        
 App()
