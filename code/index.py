@@ -143,6 +143,7 @@ class Writer:
 
     def preencher_data(self):
         excluidos = []
+        repetidos = []
         for index_recibo, row_recibo in self.df.iterrows():
             achado = False
             #print(f'{row_recibo['CNPJ']} - CNPJ procurado')
@@ -150,6 +151,8 @@ class Writer:
                 #print(f'{row_matriz['CNPJ']} - opções')
                 if row_recibo['CNPJ'] == row_matriz['CNPJ']:
                     achado = True
+                    if self.ws.table[index_matriz + self.lin_data][3] != '':
+                        repetidos.append(row_recibo)
                     for col_index, valor in enumerate(row_recibo):
                         self.ws.write(index_matriz + self.lin_data, col_index, valor, self.wb.add_format({'border':3, 'align':'center'}))
 
