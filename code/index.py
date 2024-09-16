@@ -107,148 +107,71 @@ class Recibo(Arquivo):
             messagebox.showerror(title='Aviso', message= 'O arquivo selecionado já apresenta uma versão sem acento, favor usar tal versão ou apagar uma delas')
         except Exception as error:
             messagebox.showerror(title='Aviso', message= error)
-
-class Writer:
-    def __init__(self, df, titulo):
-        self.df = df
+        
+    
+class Criacao:
+    def __init__(self, titulo, nome_arq):
+        self.LIN_INDEX = 6
+        self.LIN_DATA = 7
         self.titulo = titulo
 
-        self.LIN_INDEX = 6
-        self.lin_data = self.LIN_INDEX + 1
-        self.dif_data = 2
-        self.dif_cnpj = 1
-
-    def abrir(self):
-        messagebox.showinfo(title='Aviso', message='Abrindo o arquivo gerado!')
-
-        os.startfile(self.file+'.xlsx')
-    
-    def colunas(self):
-        for col_index, columns in enumerate(list(self.df.columns)):
-            self.ws.write(self.LIN_INDEX, col_index, columns,self.wb.add_format({'bold':True,'top':2, 'bg_color':'#a7b8ab','underline':True, 'align':'center'}))
-
-    def preencher_matriz(self):
-        for index, row in self.df_matriz.iterrows():
-            #Adciona Nome e CNPJ apenas
-            for col_index, valor in enumerate(row):
-                self.ws.write(index + self.lin_data, col_index, valor,\
-                    self.wb.add_format({'border':3, 'align':'center'}))
-            
-            #Termina o df com espaços vazios
-            self.espacos_vazios(index)
-
-    def espacos_vazios(self, index):
-        for col_index in range(len(self.df.columns) - self.dif_data):
-            self.ws.write(index + self.lin_data, col_index + self.dif_data, '',\
-                self.wb.add_format({'border':3}))
-
-    def preencher_data(self, excluido, repetido):
-        encontrados = []
-        for index_recibo, row_recibo in self.df.iterrows():
-            achado = False
-            #print(f'{row_recibo['CNPJ']} - CNPJ procurado')
-            for index_matriz, row_matriz in self.df_matriz.iterrows():
-                #print(f'{row_matriz['CNPJ']} - opções')
-                if row_recibo['CNPJ'] == row_matriz['CNPJ']:
-                    achado = True
-                    if row_recibo['CNPJ'] in encontrados:
-                        repetido.add_data(row_recibo)
-                    else:
-                        encontrados.append(row_recibo['CNPJ'])
-                        for col_index, valor in enumerate(row_recibo):
-                            self.ws.write(index_matriz + self.lin_data, col_index, valor, self.wb.add_format({'border':3, 'align':'center'}))
-
-                    break
-
-            if achado == False:
-                excluido.add_data(row_recibo)
-                    
-    def nomear_arq(self):
-        nome_arq = asksaveasfilename(title='Favor selecionar a pasta onde será salvo', filetypes=((".xlsx","*.xlsx"),))
-
-        if nome_arq == '':
-            if messagebox.askyesno(title='Aviso', message= 'Deseja cancelar esta operação?') == True:
-                raise Exception ('Operação cancelada!')
-            else:
-                return self.nomear_arq()
-            
-        return nome_arq    
-    
-class Relatorio(Writer):
-    def __init__(self, df, df_matriz, titulo):
-        super().__init__(df, titulo)
-        self.df_matriz = df_matriz
-
-        self.file = self.nomear_arq()
-
-        self.wb = Workbook(self.file + '.xlsx')
+        self.wb = Workbook(nome_arq + '.xlsx')
         self.ws = self.wb.add_worksheet('Relacionados')
-        self.ws.set_column('A:A', 40)
-        self.ws.set_column('B:B', 20)
-        self.ws.set_column('C:C', 15)
-        self.ws.set_column('D:D', 20)
-        self.ws.set_column('E:E', 15)
-        self.ws.set_column('F:F', 20)
-        self.ws.set_column('G:G', 20)
+        self.width_ws(self.ws)
 
-        self.excluidos = Adcional(self.df, self.titulo, self.wb)
-        self.repetidos = Adcional(self.df, self.titulo, self.wb)
+    def width_ws(self, ws):
+        ref = {
+            'A:A':40,
+            'B:B':20,
+            'C:C':15,
+            'D:D':20,
+            'E:E':15,
+            'F:F':20,
+            'G:G':20
+        }
+        for key, value in ref:
+            ws.set_column(key, value)
 
-
-    def gerar_arquivo(self):
-        self.__cabecalho()
-        self.__table_ref()
-        self.colunas()
-        self.preencher_matriz()
+    def criar(self, df_matriz, df_recibo):
+        self._cabecalho()
+        self._table_ref()
+        self._colunas()
+        self._matriz()
         
-        self.preencher_data(self.excluidos, self.repetidos)
+        adcional = self._data(df_matriz,df_recibo)
 
-        if self.excluidos.qnt_itens() != 0:
-            messagebox.showinfo(title='Aviso', message= f'{self.excluidos.qnt_itens()} empresas foram inseridas na aba "Não relacionadas" por não constarem na matriz')
-
+        if adcional.qnt_excluidos() != 0:
             ws = self.wb.add_worksheet('Não Relacionados')
-            ws.set_column('A:A', 40)
-            ws.set_column('B:B', 20)
-            ws.set_column('C:C', 15)
-            ws.set_column('D:D', 20)
-            ws.set_column('E:E', 15)
-            ws.set_column('F:F', 20)
-            ws.set_column('G:G', 20)
-            self.excluidos.preencher(ws,'yellow')
+            self.width_ws(ws)
+            adcional.preencher(ws,'yellow')
 
-        if self.repetidos.qnt_itens() != 0:
-            messagebox.showinfo(title='Aviso', message= f'{self.repetidos.qnt_itens()} empresas foram inseridos em duplicidade. A segunda cópia foi inserida na aba "Repetidos"')
-
+        if self.repetidos.qnt_repetidos() != 0:
             ws = self.wb.add_worksheet('Repetidos')
-            ws.set_column('A:A', 40)
-            ws.set_column('B:B', 20)
-            ws.set_column('C:C', 15)
-            ws.set_column('D:D', 20)
-            ws.set_column('E:E', 15)
-            ws.set_column('F:F', 20)
-            ws.set_column('G:G', 20)
-            self.repetidos.preencher(ws ,'cyan')
+            self.width_ws(ws)
+            adcional.preencher(ws ,'cyan')
 
-        self.wb.close()    
+        self.wb.close()   
 
-    def __cabecalho(self):
+        return adcional 
+
+    def _cabecalho(self):
         self.ws.write(0,0,f'RELATÓRIO DE CONFERÊNCIA {self.titulo}',\
             self.wb.add_format({'bold': True, 'font_size': 26}))
 
         self.ws.write(2,0,'Competência',\
             self.wb.add_format({'bold':True,'align':'right','font_size': 16}))
-        self.ws.write(2,1, self.data_confe())
+        self.ws.write(2,1, self._data_confe())
 
         self.ws.write(3,0,'Data Entrega',\
             self.wb.add_format({'bold':True,'align':'right','font_size': 16}))
         self.ws.write(3,1, datetime.now().strftime("%d/%m/%Y"))
 
-    def data_confe(self):
+    def _data_confe(self):
         data = f'{datetime.now().month - 1}/{datetime.now().year}'
         data_format = datetime.strptime(data, '%m/%Y')
         return data_format.strftime("%B/%Y".capitalize())
 
-    def __table_ref(self):
+    def _table_ref(self):
         tam_df = len(self.df_matriz)+7
         ref = {
             'Obrigadas:': f'=COUNTA($A8:$A{tam_df})',
@@ -263,42 +186,84 @@ class Relatorio(Writer):
             
             self.ws.write(index+2,4, text[1],\
                 self.wb.add_format({'border':1,'align':'center'}))
+            
+    def _colunas(self):
+        for col_index, columns in enumerate(list(self.df.columns)):
+            self.ws.write(self.LIN_INDEX, col_index, columns,self.wb.add_format({'bold':True,'top':2, 'bg_color':'#a7b8ab','underline':True, 'align':'center'}))
 
-class Incremento(Writer):
-    def __init__(self, df, df_relatorio, wb_completo, titulo):
-        super().__init__(df, titulo)
+    def _matriz(self):
+        for index, row in self.df_matriz.iterrows():
+            #Adciona Nome e CNPJ apenas
+            for col_index, valor in enumerate(row):
+                self.ws.write(index + self.lin_data, col_index, valor,\
+                    self.wb.add_format({'border':3, 'align':'center'}))
+            
+            #Termina o df com espaços vazios
+            self.espacos_vazios(index)
 
+    def _espacos_vazios(self, index):
+        for col_index in range(len(self.df.columns) - self.dif_data):
+            self.ws.write(index + self.lin_data, col_index + self.dif_data, '',\
+                self.wb.add_format({'border':3}))
+
+    def _data(self, df_matriz, df_recibo):
+        adcional = Adcional()
+        encontrados = []
+        for index_recibo, row_recibo in df_recibo.iterrows():
+            achado = False
+            #print(f'{row_recibo['CNPJ']} - CNPJ procurado')
+            for index_matriz, row_matriz in df_matriz.iterrows():
+                #print(f'{row_matriz['CNPJ']} - opções')
+                if row_recibo['CNPJ'] == row_matriz['CNPJ']:
+                    achado = True
+                    if row_recibo['CNPJ'] in encontrados:
+                        adcional.add_repetido(row_recibo)
+                    else:
+                        encontrados.append(row_recibo['CNPJ'])
+                        for col_index, valor in enumerate(row_recibo):
+                            self.ws.write(index_matriz + self.lin_data, col_index, valor, self.wb.add_format({'border':3, 'align':'center'}))
+                    break
+
+            if achado == False:
+                adcional.add_excluido(row_recibo)
+        
+        return adcional
+
+class Incremento:
+    def __init__(self, wb, titulo):
+        self.LIN_DATA = 4
+        self.titulo = titulo
+        
+        self.wb = wb
+        self.ws = self.wb['Relacionados']
+
+    def incrementar(self, df_matriz, df_relatorio, nome_arq):
+        adcional = self._data(df_matriz, self._init_df(df_relatorio))
+
+        if adcional.qnt_excluidos() != 0:
+            ws = self.wb.create_sheet('Não Relacionados')
+            self._widht_ws(ws)
+            adcional.preencher(ws,'yellow')
+        
+        if self.repetidos.qnt_repetidos() != 0:
+            ws = self.wb.create_sheet('Repetidos')
+            self._widht_ws(ws)
+            adcional.preencher(ws,'cyan')
+
+        self.wb.save(nome_arq+'.xlsx')
+
+        return adcional
+
+    def _init_df(self, df_relatorio):
         titulo_arq = df_relatorio.columns[0]
         if self.titulo not in titulo_arq:
             raise Exception('O relatório inserido é de uma obrigação diferente do recibo em questão')
 
-        self.df_relatorio = df_relatorio
-        self.df_relatorio = self.df_relatorio.drop([0,1,2,3,4,5,6])\
+        return df_relatorio.drop([0,1,2,3,4,5,6])\
             .reset_index(drop=True)
         
-        self.wb = wb_completo
-        self.ws = self.wb['Relacionados']
-        self.excluidos = Adcional(self.df, self.titulo, self.wb)
-        self.repetidos = Adcional(self.df, self.titulo, self.wb)
-
-    def gerar_arquivo(self):
-        self.data()
-
-        if self.excluidos.qnt_itens() != 0:
-            messagebox.showinfo(title='Aviso', message= f'{self.excluidos.qnt_itens()} empresas foram inseridas na aba "Não relacionadas" por não constarem na matriz')
-
-            self.gerar_aba('Não Relacionados', 'yellow')
-        
-        if self.repetidos.qnt_itens() != 0:
-            messagebox.showinfo(title='Aviso', message= f'{self.repetidos.qnt_itens()} empresas foram inseridos em duplicidade. A segunda cópia foi inserida na aba "Repetidos"')
-
-            self.gerar_aba('Repetidos', 'cyan')
-
-        self.file = self.nomear_arq()
-
-        self.wb.save(self.file+'.xlsx')
-
-    def data(self):
+    def _data(self):
+        adcional = Adcional()
         for index_recibo, row_recibo in self.df.iterrows():
             achado = False
             #print(f'{row_recibo['CNPJ']} - CNPJ procurado')
@@ -307,46 +272,53 @@ class Incremento(Writer):
                 if row_recibo.iloc[1] == row_matriz.iloc[1]:
                     achado = True
                     if row_recibo.iloc[2] != '':
-                        self.repetidos.add_data(row_recibo)
+                        adcional.add_repetido(row_recibo)
                     for col_index, valor in enumerate(row_recibo):
                         self.ws.cell\
                             (index_matriz + self.lin_data+2, col_index+1, valor).alignment = Alignment(horizontal='center')
                     break
 
             if achado == False:
-                self.excluidos.add_data(row_recibo)
+                adcional.add_excluido(row_recibo)
     
-    def gerar_aba(self, titulo, cor):
-        ws = self.wb.create_sheet(titulo)
+    def _widht_ws(self, ws):
         for index, valor in enumerate([40,20,15,20,15,20,20],1):
             ws.column_dimensions[get_column_letter(index)].width = valor
-        self.repetidos.preencher(ws,cor)
 
-class Adcional(Writer):
-    def __init__(self, df, titulo, wb):
-        super().__init__(df, titulo)
+class Adcional:
+    def __init__(self, tipo, wb):
+        self.tipo = tipo
         self.wb = wb
-        self.data = []
+        self.excluidos = []
+        self.repetidos = []
 
+    def add_excluidos(self, row):
+        self.excluidos.append(row)
+
+    def add_repetidos(self, row):
+        self.repetidos.append(row)
+
+    def qnt_excluidos(self):
+        return len(self.excluidos)
+    
+    def qnt_repetidos(self):
+        return len(self.repetidos)
+
+class Criavel:
     def preencher(self, ws, cor):
         self.ws = ws
-        self.__titulo()
-        self.colunas()
-        self.__excluidos(cor)
+        self._titulo()
+        self._colunas()
+        self._excluidos(cor)
 
-    def __titulo(self):
+    def _titulo(self):
         self.ws.write(0,0,f'EMPRESAS NÃO RELACIONADAS {self.titulo}', self.wb.add_format({'bold': True, 'font_size': 26}))
 
-    def __excluidos(self, cor):
+    def _excluidos(self, cor):
         for index_recibo, row_recibo in enumerate(self.data):
             for col_index, valor in enumerate(row_recibo):
                 self.ws.write(index_recibo + self.lin_data, col_index, valor, self.wb.add_format({'border':3, 'align':'center', 'bg_color':cor}))
 
-    def add_data(self, row):
-        self.data.append(row)
-
-    def qnt_itens(self):
-        return len(self.data)
 
 class Competencia:
     def __init__(self):
@@ -723,6 +695,17 @@ class App:
                 if chave in valor.lower():
                     return obj
             raise Exception('Nome da obrigação não identificado em todos os arquivos, favor selecionar tipo')
+        
+    def nomear_arq(self):
+        nome_arq = asksaveasfilename(title='Favor selecionar a pasta onde será salvo', filetypes=((".xlsx","*.xlsx"),))
+
+        if nome_arq == '':
+            if messagebox.askyesno(title='Aviso', message= 'Deseja cancelar esta operação?') == True:
+                raise Exception ('Operação cancelada!')
+            else:
+                return self.nomear_arq()
+            
+        return nome_arq    
 
     def executar(self):
         # try:   
@@ -736,19 +719,27 @@ class App:
             for arquivo in self.recibos.get_caminho():
                 declaracao.add_linha(arquivo)
 
-            df = declaracao.gerar_df()
+            df_recibo = declaracao.gerar_df()
 
             df_matriz = self.matriz.ler()
+
+            nome_arq = self.nomear_arq()
             
             if self.valIncrement.get() == True:
                 wb_completo = self.matriz.load()
-                obj = Incremento(df, df_matriz, wb_completo, declaracao.to_string())
+                adcional = Incremento(wb_completo, declaracao.to_string()).incrementar(df_matriz, df_recibo, nome_arq)
             else:
-                obj = Relatorio(df, df_matriz, declaracao.to_string())
+                adcional = Criacao(declaracao.to_string(), nome_arq).criar(df_matriz, df_recibo)
 
-            obj.gerar_arquivo()
-            
-            obj.abrir()
+            if adcional.qnt_excluidos() != 0:
+                messagebox.showinfo(title='Aviso', message= f'{self.excluidos.qnt_itens()} empresas foram inseridas na aba "Não relacionadas" por não constarem na matriz')
+
+            if adcional.qnt_repetidos() != 0:
+                 messagebox.showinfo(title='Aviso', message= f'{self.repetidos.qnt_itens()} empresas foram inseridos em duplicidade. A segunda cópia foi inserida na aba "Repetidos"')
+
+            messagebox.showinfo(title='Aviso', message='Abrindo o arquivo gerado!')
+
+            os.startfile(nome_arq+'.xlsx')
          
         # except (IndexError, TypeError):
         #     messagebox.showerror(title='Aviso', message= 'Erro ao extrair o recibo, confira se a obrigação foi selecionada corretamente. Caso contrário, comunique ao desenvolvedor')
