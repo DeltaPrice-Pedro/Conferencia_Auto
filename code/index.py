@@ -15,7 +15,21 @@ import locale
 from openpyxl import *
 from openpyxl.workbook import Workbook
 from openpyxl.utils import get_column_letter
-from openpyxl.styles import Alignment, Font
+from openpyxl.styles import Alignment, Font, Border, Side, PatternFill
+
+thin_border = Border(
+    left=Side(border_style='thin', color='FF000000'),
+    right=Side(border_style='thin', color='FF000000'),
+    top=Side(border_style='thin', color='FF000000'),
+    bottom=Side(border_style='thin', color='FF000000')
+)
+
+dashed_border = Border(
+    left=Side(border_style='dashed', color='FF000000'),
+    right=Side(border_style='dashed', color='FF000000'),
+    top=Side(border_style='dashed', color='FF000000'),
+    bottom=Side(border_style='dashed', color='FF000000')
+)
 
 locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
 
@@ -113,30 +127,33 @@ class IFielding:
     def field(self, df_recibo, ws):
         for col_index, columns in enumerate(list(df_recibo.columns), 1):
             celula = ws.cell(self.LIN_INDEX, col_index, columns)
+            celula.font = Font(bold=True, underline='single')
             celula.alignment = Alignment(horizontal='center')
-
-            # self.ws.write(self.LIN_INDEX, col_index, columns,self.wb.add_format({'bold':True,'top':2, 'bg_color':'#a7b8ab','underline':True, 'align':'center'}))
+            celula.border = Border(top=Side(border_style='medium', color='FF000000'))
+            celula.fill = PatternFill(start_color='B0BFB2',
+                                        end_color='B0BFB2',
+                                        fill_type='solid')
 
 class IDating:
 
     def data(self, df_matriz, df_recibo):
-        excluido = Adcional('yellow', df_recibo, self.titulo)
-        repetido = Adcional('cyan', df_recibo, self.titulo)
-        encontrados = []
+        excluido = Adcional('FFF500', df_recibo, f'NÃO RELACIONADAS {self.titulo}')
+        repetido = Adcional('497BFF', df_recibo, f'REPETIDAS {self.titulo}')
         for index_recibo, row_recibo in df_recibo.iterrows():
             achado = False
-            #print(f'{row_recibo['CNPJ']} - CNPJ procurado')
+            #print(f'{row_recibo} - CNPJ procurado')
             for index_matriz, row_matriz in df_matriz.iterrows():
-                #print(f'{row_matriz['CNPJ']} - opções')
+                #print(f'{row_matriz} - opções')
                 if row_recibo['CNPJ'] == row_matriz['CNPJ']:
                     achado = True
-                    if row_recibo['CNPJ'] in encontrados:
+                    if self.ws.cell(index_matriz + self.LIN_DATA, 3).value != '':
                         repetido.add_data(row_recibo)
                     else:
-                        encontrados.append(row_recibo['CNPJ'])
                         for col_index, valor in enumerate(row_recibo, 1):
-                            self.ws.cell\
-                            (index_matriz + 2, col_index, valor).alignment = Alignment(horizontal='center')
+                            celula = self.ws.cell\
+                            (index_matriz + self.LIN_DATA, col_index, valor)
+                            celula.alignment = Alignment(horizontal='center')
+                            celula.border = dashed_border
                     break
 
             if achado == False:
@@ -159,8 +176,8 @@ class IDating:
         
 class Criacao (IFielding, IDating):
     def __init__(self, titulo):
-        self.LIN_INDEX = 6
-        self.LIN_DATA = 7
+        self.LIN_INDEX = 7
+        self.LIN_DATA = 8
         self.titulo = titulo
 
         self.wb = Workbook()
@@ -182,28 +199,19 @@ class Criacao (IFielding, IDating):
 
         return adcionais 
 
-    def _cabecalho(self):
-        # self.ws.write(0,0,f'RELATÓRIO DE CONFERÊNCIA {self.titulo}',\
-        #     self.wb.add_format({'bold': True, 'font_size': 26}))
-        
+    def _cabecalho(self):  
         self.ws.cell(1,1, f'RELATÓRIO DE CONFERÊNCIA {self.titulo}').font = Font(size=26,
                 bold=True,)
-
-        # self.ws.write(2,0,'Competência',\
-        #     self.wb.add_format({'bold':True,'align':'right','font_size': 16}))
         
-        self.ws.cell(3,1, 'Competência').font = Font(size=16, bold=True,)
-
-        #self.ws.write(2,1, self._data_confe())
+        celula = self.ws.cell(3,1, 'Competência')
+        celula.font = Font(size=16, bold=True)
+        celula.alignment = Alignment(horizontal= 'right')
 
         self.ws.cell(3,2, self._data_confe())
-
-        # self.ws.write(3,0,'Data Entrega',\
-        #     self.wb.add_format({'bold':True,'align':'right','font_size': 16}))
         
-        self.ws.cell(4,1, 'Data Entrega').font = Font(size=16, bold=True,)
-
-        #self.ws.write(3,1, datetime.now().strftime("%d/%m/%Y"))
+        celula = self.ws.cell(4,1, 'Data Entrega')
+        celula.font = Font(size=16, bold=True)
+        celula.alignment = Alignment(horizontal= 'right')
 
         self.ws.cell(4,2, datetime.now().strftime("%d/%m/%Y"))
 
@@ -221,112 +229,64 @@ class Criacao (IFielding, IDating):
         }
 
         #f'=COUNTIF($D8:$D{tam_df}, "ENVIADO")'
-        for index, text in enumerate(ref.items(), 1):
-            # self.ws.write(index+2,3, text[0],\
-            #     self.wb.add_format({'bold':True,'border':1,'align':'right'}))
-            
-            self.ws.cell(index + 2, 4, text[0]).font = Font(size=16)
-            
-            # self.ws.write(index+2,4, text[1],\
-            #     self.wb.add_format({'border':1,'align':'center'}))
-            
-            self.ws.cell(index + 2, 5, text[1]).font = Font(size=16)
-            
-    # def _colunas(self):
-    #     for col_index, columns in enumerate(list(self.df.columns)):
-    #         self.ws.write(self.LIN_INDEX, col_index, columns,self.wb.add_format({'bold':True,'top':2, 'bg_color':'#a7b8ab','underline':True, 'align':'center'}))
 
+        for index, text in enumerate(ref.items(), 1):
+            celula = self.ws.cell(index + 2, 4, text[0])
+            celula.font = Font(bold=True)
+            celula.alignment = Alignment(horizontal= 'right')
+            celula.border = thin_border
+            
+            celula = self.ws.cell(index + 2, 5, text[1])
+            celula.alignment = Alignment(horizontal= 'center')
+            celula.border = thin_border
+            
     def _matriz(self, df_matriz, df_recibo):
         for index, row in df_matriz.iterrows():
             #Adciona Nome e CNPJ apenas
             for col_index, valor in enumerate(row, 1):
-                # self.ws.write(index + self.lin_data, col_index, valor,\
-                #     self.wb.add_format({'border':3, 'align':'center'}))
-                
-                self.ws.cell(index + self.LIN_DATA, col_index, valor).font = Font(size=16)
+                celula = self.ws.cell(index + self.LIN_DATA, col_index, valor)
+                celula.alignment = Alignment(horizontal= 'center')
+                celula.border = dashed_border
             
             #Termina o df com espaços vazios
             self._espacos_vazios(index, df_recibo)
 
     def _espacos_vazios(self, index, df_recibo):
-        for col_index in range(len(df_recibo.columns) - 2):
-            # self.ws.write(index + self.lin_data, col_index + self.dif_data, '',\
-            #     self.wb.add_format({'border':3}))
-            
-            self.ws.cell(index + self.LIN_DATA, col_index + 2, '')
-
-    # def _data(self, df_matriz, df_recibo):
-    #     adcional = Adcional()
-    #     encontrados = []
-    #     for index_recibo, row_recibo in df_recibo.iterrows():
-    #         achado = False
-    #         #print(f'{row_recibo['CNPJ']} - CNPJ procurado')
-    #         for index_matriz, row_matriz in df_matriz.iterrows():
-    #             #print(f'{row_matriz['CNPJ']} - opções')
-    #             if row_recibo['CNPJ'] == row_matriz['CNPJ']:
-    #                 achado = True
-    #                 if row_recibo['CNPJ'] in encontrados:
-    #                     adcional.add_repetido(row_recibo)
-    #                 else:
-    #                     encontrados.append(row_recibo['CNPJ'])
-    #                     for col_index, valor in enumerate(row_recibo):
-    #                         self.ws.write(index_matriz + self.lin_data, col_index, valor, self.wb.add_format({'border':3, 'align':'center'}))
-    #                 break
-
-    #         if achado == False:
-    #             adcional.add_excluido(row_recibo)
-        
-    #     return adcional
+        dif_cnpj = 2
+        for col_index in range(len(df_recibo.columns) - dif_cnpj):
+            self.ws.cell(index + self.LIN_DATA, col_index + dif_cnpj + 1, '')\
+                .border = dashed_border
 
 class Incremento (IDating):
     def __init__(self, wb, titulo):
-        self.LIN_DATA = 4
+        self.LIN_DATA = 9
         self.titulo = titulo
         
         self.wb = wb
         self.ws = self.wb['Relacionados']
 
     def incrementar(self, df_matriz, df_relatorio, nome_arq):
-        adcional = self.data(df_matriz, self._init_df(df_relatorio))
+        adcionais = self.data(self._init_matriz(df_matriz), df_relatorio)
 
-        self.valid_adcionais(adcional)
+        self.valid_adcionais(adcionais)
 
         self.wb.save(nome_arq+'.xlsx')
 
-        return adcional
+        return adcionais
 
-    def _init_df(self, df_relatorio):
-        titulo_arq = df_relatorio.columns[0]
+    def _init_matriz(self, df_matriz):
+        titulo_arq = df_matriz.columns[0]
         if self.titulo not in titulo_arq:
             raise Exception('O relatório inserido é de uma obrigação diferente do recibo em questão')
 
-        return df_relatorio.drop([0,1,2,3,4,5,6])\
+        df_matriz.columns = ["EMPRESA","CNPJ"]
+        return df_matriz.drop([0,1,2,3,4,5,6])\
             .reset_index(drop=True)
-        
-    # def _data(self):
-    #     adcional = Adcional()
-    #     for index_recibo, row_recibo in self.df.iterrows():
-    #         achado = False
-    #         #print(f'{row_recibo['CNPJ']} - CNPJ procurado')
-    #         for index_matriz, row_matriz in self.df_relatorio.iterrows():
-    #             #print(f'{row_matriz['CNPJ']} - opções')
-    #             if row_recibo.iloc[1] == row_matriz.iloc[1]:
-    #                 achado = True
-    #                 if row_recibo.iloc[2] != '':
-    #                     adcional.add_repetido(row_recibo)
-    #                 for col_index, valor in enumerate(row_recibo):
-    #                     self.ws.cell\
-    #                         (index_matriz + self.lin_data+2, col_index+1, valor).alignment = Alignment(horizontal='center')
-    #                 break
-
-    #         if achado == False:
-    #             adcional.add_excluido(row_recibo)
-    
 
 class Adcional(IFielding):
     def __init__(self, cor, df_recibo, titulo):
         self.data = []
-        self.LIN_INDEX = 2
+        self.LIN_INDEX = 3
         self.titulo = titulo
         self.df_recibo = df_recibo
         self.cor = cor
@@ -343,18 +303,17 @@ class Adcional(IFielding):
         self._data(ws)
 
     def _titulo(self, ws):
-        # self.ws.write(0,0,f'EMPRESAS NÃO RELACIONADAS {self.titulo}', self.wb.add_format({'bold': True, 'font_size': 26}))
-
-        ws.cell(1,1, f'EMPRESAS NÃO RELACIONADAS {self.titulo}').font = Font(size=26,
-                bold=True,)
+        ws.cell(1,1, self.titulo).font = Font(size=26, bold=True,)
 
     def _data(self, ws):
         for index_recibo, row_recibo in enumerate(self.data, 1):
             for col_index, valor in enumerate(row_recibo, 1):
-                # self.ws.write(index_recibo + self.lin_data, col_index, valor, self.wb.add_format({'border':3, 'align':'center', 'bg_color':cor}))
-
-                ws.cell(index_recibo + 2, col_index, valor).font = Font(size=16,
-                bold=True,)
+                celula = ws.cell(index_recibo + self.LIN_INDEX, col_index, valor)
+                celula.alignment = Alignment(horizontal='center')
+                celula.border = dashed_border
+                celula.fill = PatternFill(start_color= self.cor,
+                                        end_color= self.cor,
+                                        fill_type='solid')
 
 
 class Competencia:
@@ -755,7 +714,7 @@ class App:
                 messagebox.showinfo(title='Aviso', message= f'{adc.qnt_data()} empresas foram inseridas {ref[index]}') 
 
     def executar(self):
-        # try:   
+        try:   
             if self.matriz.envio_invalido():
                 raise Exception ('Insira alguma Matriz')
             elif self.recibos.envio_invalido():
@@ -784,11 +743,11 @@ class App:
 
             os.startfile(nome_arq+'.xlsx')
          
-        # except (IndexError, TypeError):
-        #     messagebox.showerror(title='Aviso', message= 'Erro ao extrair o recibo, confira se a obrigação foi selecionada corretamente. Caso contrário, comunique ao desenvolvedor')
-        # except KeyError:
-        #     messagebox.showerror(title='Aviso', message= 'Relatório ou Matriz inserido é inválido, certifique-se que inseriu o documento correto')
-        # except Exception as error:
-        #     messagebox.showerror(title='Aviso', message= error)
+        except (IndexError, TypeError):
+            messagebox.showerror(title='Aviso', message= 'Erro ao extrair o recibo, confira se a obrigação foi selecionada corretamente. Caso contrário, comunique ao desenvolvedor')
+        except KeyError:
+            messagebox.showerror(title='Aviso', message= 'Relatório ou Matriz inserido é inválido, certifique-se que inseriu o documento correto')
+        except Exception as error:
+            messagebox.showerror(title='Aviso', message= error)
        
 App()
