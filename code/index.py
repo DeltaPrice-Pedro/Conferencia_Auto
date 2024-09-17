@@ -250,8 +250,8 @@ class Criacao (IFielding, IDating):
 
     def _espacos_vazios(self, index):
         for col_index in range(len(self.df.columns) - 2):
-            self.ws.write(index + self.lin_data, col_index + self.dif_data, '',\
-                self.wb.add_format({'border':3}))
+            # self.ws.write(index + self.lin_data, col_index + self.dif_data, '',\
+            #     self.wb.add_format({'border':3}))
             
             self.ws.cell(index + self.LIN_DATA, col_index + 2, '')
 
@@ -349,12 +349,18 @@ class Adcional(IFielding):
         self._data(cor)
 
     def _titulo(self):
-        self.ws.write(0,0,f'EMPRESAS NÃO RELACIONADAS {self.titulo}', self.wb.add_format({'bold': True, 'font_size': 26}))
+        # self.ws.write(0,0,f'EMPRESAS NÃO RELACIONADAS {self.titulo}', self.wb.add_format({'bold': True, 'font_size': 26}))
+
+        self.ws.cell(1,1, f'EMPRESAS NÃO RELACIONADAS {self.titulo}').font = Font(size=26,
+                bold=True,)
 
     def _data(self, cor):
         for index_recibo, row_recibo in enumerate(self.data):
             for col_index, valor in enumerate(row_recibo):
-                self.ws.write(index_recibo + self.lin_data, col_index, valor, self.wb.add_format({'border':3, 'align':'center', 'bg_color':cor}))
+                # self.ws.write(index_recibo + self.lin_data, col_index, valor, self.wb.add_format({'border':3, 'align':'center', 'bg_color':cor}))
+
+                self.ws.cell(index_recibo + 2, col_index, valor).font = Font(size=16,
+                bold=True,)
 
 
 class Competencia:
