@@ -3,19 +3,19 @@ from tkinter import messagebox
 from tkinter.filedialog import askopenfilenames, askopenfilename, asksaveasfilename
 import tabula as tb
 import pandas as pd
+
 from unidecode import unidecode
 import string
 import os
-import abc
 import copy
-
-from openpyxl import *
-from openpyxl.utils import get_column_letter
-from openpyxl.styles import Alignment, Font
 import sys
 from datetime import *
-from xlsxwriter import *
 import locale
+
+from openpyxl import *
+from openpyxl.workbook import Workbook
+from openpyxl.utils import get_column_letter
+from openpyxl.styles import Alignment, Font
 
 locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
 
@@ -108,19 +108,20 @@ class Recibo(Arquivo):
         except Exception as error:
             messagebox.showerror(title='Aviso', message= error)
 
-class IFielding(metaclass=abc.ABCMeta):
-    @abc.abstractmethod
-    def field(self):
-        for col_index, columns in enumerate(list(self.df.columns)):
-            celula = self.ws.cell(self.LIN_INDEX, col_index, columns)
+class IFielding:
+
+    def field(self, df_recibo, ws):
+        for col_index, columns in enumerate(list(df_recibo.columns), 1):
+            celula = ws.cell(self.LIN_INDEX, col_index, columns)
             celula.alignment = Alignment(horizontal='center')
 
             # self.ws.write(self.LIN_INDEX, col_index, columns,self.wb.add_format({'bold':True,'top':2, 'bg_color':'#a7b8ab','underline':True, 'align':'center'}))
 
-class IDating(metaclass=abc.ABCMeta):
-    @abc.abstractmethod
+class IDating:
+
     def data(self, df_matriz, df_recibo):
-        adcional = Adcional()
+        excluido = Adcional('yellow', df_recibo, self.titulo)
+        repetido = Adcional('cyan', df_recibo, self.titulo)
         encontrados = []
         for index_recibo, row_recibo in df_recibo.iterrows():
             achado = False
@@ -130,34 +131,32 @@ class IDating(metaclass=abc.ABCMeta):
                 if row_recibo['CNPJ'] == row_matriz['CNPJ']:
                     achado = True
                     if row_recibo['CNPJ'] in encontrados:
-                        adcional.add_repetido(row_recibo)
+                        repetido.add_data(row_recibo)
                     else:
                         encontrados.append(row_recibo['CNPJ'])
-                        for col_index, valor in enumerate(row_recibo):
+                        for col_index, valor in enumerate(row_recibo, 1):
                             self.ws.cell\
-                            (index_matriz + self.lin_data, col_index, valor).alignment = Alignment(horizontal='center')
+                            (index_matriz + 2, col_index, valor).alignment = Alignment(horizontal='center')
                     break
 
             if achado == False:
-                adcional.add_excluido(row_recibo)
+                excluido.add_data(row_recibo)
         
-        return adcional
+        return [excluido,repetido]
     
     def width_ws(self, ws):
         for index, valor in enumerate([40,20,15,20,15,20,20],1):
             ws.column_dimensions[get_column_letter(index)].width = valor
 
-    def valid_adcionais(self, adcional):
-        if adcional.qnt_excluidos() != 0:
-            ws = self.wb.create_sheet('Não Relacionados')
-            self.width_ws(ws)
-            adcional.preencher(ws,'yellow')
+    def valid_adcionais(self, adcionais):
+        ref = ['Não Relacionados', 'Repetidos']
+
+        for index, adc in enumerate(adcionais):
+            if adc.qnt_data() != 0:
+                ws = self.wb.create_sheet(ref[index])
+                self.width_ws(ws)
+                adc.preencher(ws)
         
-        if adcional.qnt_repetidos() != 0:
-            ws = self.wb.create_sheet('Repetidos')
-            self.width_ws(ws)
-            adcional.preencher(ws,'cyan')
-    
 class Criacao (IFielding, IDating):
     def __init__(self, titulo):
         self.LIN_INDEX = 6
@@ -165,22 +164,23 @@ class Criacao (IFielding, IDating):
         self.titulo = titulo
 
         self.wb = Workbook()
-        self.ws = self.wb.create_sheet('Relacionados')
+        self.ws = self.wb.active
+        self.ws.title = 'Relacionados'
         self.width_ws(self.ws)
 
     def criar(self, df_matriz, df_recibo, nome_arq):
         self._cabecalho()
         self._table_ref(df_matriz)
-        self.field()
-        self._matriz()
+        self.field(df_recibo, self.ws)
+        self._matriz(df_matriz, df_recibo)
         
-        adcional = self.data(df_matriz, df_recibo)
+        adcionais = self.data(df_matriz, df_recibo)
 
-        self.valid_adcionais(adcional)
+        self.valid_adcionais(adcionais)
 
-        self.wb.close()   
+        self.wb.save(nome_arq+'.xlsx') 
 
-        return adcional 
+        return adcionais 
 
     def _cabecalho(self):
         # self.ws.write(0,0,f'RELATÓRIO DE CONFERÊNCIA {self.titulo}',\
@@ -221,35 +221,35 @@ class Criacao (IFielding, IDating):
         }
 
         #f'=COUNTIF($D8:$D{tam_df}, "ENVIADO")'
-        for index, text in enumerate(ref.items()):
+        for index, text in enumerate(ref.items(), 1):
             # self.ws.write(index+2,3, text[0],\
             #     self.wb.add_format({'bold':True,'border':1,'align':'right'}))
             
-            self.ws.cell(index + 3, 4, text[0]).font = Font(size=16)
+            self.ws.cell(index + 2, 4, text[0]).font = Font(size=16)
             
             # self.ws.write(index+2,4, text[1],\
             #     self.wb.add_format({'border':1,'align':'center'}))
             
-            self.ws.cell(index + 3, 5, text[1]).font = Font(size=16)
+            self.ws.cell(index + 2, 5, text[1]).font = Font(size=16)
             
     # def _colunas(self):
     #     for col_index, columns in enumerate(list(self.df.columns)):
     #         self.ws.write(self.LIN_INDEX, col_index, columns,self.wb.add_format({'bold':True,'top':2, 'bg_color':'#a7b8ab','underline':True, 'align':'center'}))
 
-    def _matriz(self):
-        for index, row in self.df_matriz.iterrows():
+    def _matriz(self, df_matriz, df_recibo):
+        for index, row in df_matriz.iterrows():
             #Adciona Nome e CNPJ apenas
-            for col_index, valor in enumerate(row):
+            for col_index, valor in enumerate(row, 1):
                 # self.ws.write(index + self.lin_data, col_index, valor,\
                 #     self.wb.add_format({'border':3, 'align':'center'}))
                 
                 self.ws.cell(index + self.LIN_DATA, col_index, valor).font = Font(size=16)
             
             #Termina o df com espaços vazios
-            self._espacos_vazios(index)
+            self._espacos_vazios(index, df_recibo)
 
-    def _espacos_vazios(self, index):
-        for col_index in range(len(self.df.columns) - 2):
+    def _espacos_vazios(self, index, df_recibo):
+        for col_index in range(len(df_recibo.columns) - 2):
             # self.ws.write(index + self.lin_data, col_index + self.dif_data, '',\
             #     self.wb.add_format({'border':3}))
             
@@ -324,42 +324,36 @@ class Incremento (IDating):
     
 
 class Adcional(IFielding):
-    def __init__(self, tipo, wb):
-        self.tipo = tipo
-        self.wb = wb
-        self.excluidos = []
-        self.repetidos = []
+    def __init__(self, cor, df_recibo, titulo):
+        self.data = []
+        self.LIN_INDEX = 2
+        self.titulo = titulo
+        self.df_recibo = df_recibo
+        self.cor = cor
 
-    def add_excluidos(self, row):
-        self.excluidos.append(row)
+    def add_data(self, row):
+        self.data.append(row)
 
-    def add_repetidos(self, row):
-        self.repetidos.append(row)
+    def qnt_data(self):
+        return len(self.data)
 
-    def qnt_excluidos(self):
-        return len(self.excluidos)
+    def preencher(self, ws):
+        self._titulo(ws)
+        self.field(self.df_recibo, ws)
+        self._data(ws)
 
-    def qnt_repetidos(self):
-        return len(self.repetidos)
-
-    def preencher(self, ws, cor):
-        self.ws = ws
-        self._titulo()
-        self.field()
-        self._data(cor)
-
-    def _titulo(self):
+    def _titulo(self, ws):
         # self.ws.write(0,0,f'EMPRESAS NÃO RELACIONADAS {self.titulo}', self.wb.add_format({'bold': True, 'font_size': 26}))
 
-        self.ws.cell(1,1, f'EMPRESAS NÃO RELACIONADAS {self.titulo}').font = Font(size=26,
+        ws.cell(1,1, f'EMPRESAS NÃO RELACIONADAS {self.titulo}').font = Font(size=26,
                 bold=True,)
 
-    def _data(self, cor):
-        for index_recibo, row_recibo in enumerate(self.data):
-            for col_index, valor in enumerate(row_recibo):
+    def _data(self, ws):
+        for index_recibo, row_recibo in enumerate(self.data, 1):
+            for col_index, valor in enumerate(row_recibo, 1):
                 # self.ws.write(index_recibo + self.lin_data, col_index, valor, self.wb.add_format({'border':3, 'align':'center', 'bg_color':cor}))
 
-                self.ws.cell(index_recibo + 2, col_index, valor).font = Font(size=16,
+                ws.cell(index_recibo + 2, col_index, valor).font = Font(size=16,
                 bold=True,)
 
 
@@ -748,7 +742,17 @@ class App:
             else:
                 return self.nomear_arq()
             
-        return nome_arq    
+        return nome_arq  
+
+    def avisar_adcionais(self, adcionais):
+        ref = [
+            'na aba "Não relacionadas" por não constarem na matriz',
+            'com duplicidade. A segunda cópia foi inserida na aba "Repetidos"',
+            ]
+
+        for index, adc in enumerate(adcionais):
+            if adc.qnt_data() != 0:
+                messagebox.showinfo(title='Aviso', message= f'{adc.qnt_data()} empresas foram inseridas {ref[index]}') 
 
     def executar(self):
         # try:   
@@ -770,15 +774,11 @@ class App:
             
             if self.valIncrement.get() == True:
                 wb_completo = self.matriz.load()
-                adcional = Incremento(wb_completo, declaracao.to_string()).incrementar(df_matriz, df_recibo, nome_arq)
+                adcionais = Incremento(wb_completo, declaracao.to_string()).incrementar(df_matriz, df_recibo, nome_arq)
             else:
-                adcional = Criacao(declaracao.to_string(), nome_arq).criar(df_matriz, df_recibo)
+                adcionais = Criacao(declaracao.to_string()).criar(df_matriz, df_recibo, nome_arq)
 
-            if adcional.qnt_excluidos() != 0:
-                messagebox.showinfo(title='Aviso', message= f'{self.excluidos.qnt_itens()} empresas foram inseridas na aba "Não relacionadas" por não constarem na matriz')
-
-            if adcional.qnt_repetidos() != 0:
-                 messagebox.showinfo(title='Aviso', message= f'{self.repetidos.qnt_itens()} empresas foram inseridos em duplicidade. A segunda cópia foi inserida na aba "Repetidos"')
+            self.avisar_adcionais(adcionais)
 
             messagebox.showinfo(title='Aviso', message='Abrindo o arquivo gerado!')
 
