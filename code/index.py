@@ -6,12 +6,12 @@ import pandas as pd
 from unidecode import unidecode
 import string
 import os
-
+import abc
 import copy
 
 from openpyxl import *
 from openpyxl.utils import get_column_letter
-from openpyxl.styles import Alignment
+from openpyxl.styles import Alignment, Font
 import sys
 from datetime import *
 from xlsxwriter import *
@@ -107,106 +107,19 @@ class Recibo(Arquivo):
             messagebox.showerror(title='Aviso', message= 'O arquivo selecionado já apresenta uma versão sem acento, favor usar tal versão ou apagar uma delas')
         except Exception as error:
             messagebox.showerror(title='Aviso', message= error)
-        
-    
-class Criacao:
-    def __init__(self, titulo, nome_arq):
-        self.LIN_INDEX = 6
-        self.LIN_DATA = 7
-        self.titulo = titulo
 
-        self.wb = Workbook(nome_arq + '.xlsx')
-        self.ws = self.wb.add_worksheet('Relacionados')
-        self.width_ws(self.ws)
-
-    def width_ws(self, ws):
-        ref = {
-            'A:A':40,
-            'B:B':20,
-            'C:C':15,
-            'D:D':20,
-            'E:E':15,
-            'F:F':20,
-            'G:G':20
-        }
-        for key, value in ref:
-            ws.set_column(key, value)
-
-    def criar(self, df_matriz, df_recibo):
-        self._cabecalho()
-        self._table_ref()
-        self._colunas()
-        self._matriz()
-        
-        adcional = self._data(df_matriz,df_recibo)
-
-        if adcional.qnt_excluidos() != 0:
-            ws = self.wb.add_worksheet('Não Relacionados')
-            self.width_ws(ws)
-            adcional.preencher(ws,'yellow')
-
-        if self.repetidos.qnt_repetidos() != 0:
-            ws = self.wb.add_worksheet('Repetidos')
-            self.width_ws(ws)
-            adcional.preencher(ws ,'cyan')
-
-        self.wb.close()   
-
-        return adcional 
-
-    def _cabecalho(self):
-        self.ws.write(0,0,f'RELATÓRIO DE CONFERÊNCIA {self.titulo}',\
-            self.wb.add_format({'bold': True, 'font_size': 26}))
-
-        self.ws.write(2,0,'Competência',\
-            self.wb.add_format({'bold':True,'align':'right','font_size': 16}))
-        self.ws.write(2,1, self._data_confe())
-
-        self.ws.write(3,0,'Data Entrega',\
-            self.wb.add_format({'bold':True,'align':'right','font_size': 16}))
-        self.ws.write(3,1, datetime.now().strftime("%d/%m/%Y"))
-
-    def _data_confe(self):
-        data = f'{datetime.now().month - 1}/{datetime.now().year}'
-        data_format = datetime.strptime(data, '%m/%Y')
-        return data_format.strftime("%B/%Y".capitalize())
-
-    def _table_ref(self):
-        tam_df = len(self.df_matriz)+7
-        ref = {
-            'Obrigadas:': f'=COUNTA($A8:$A{tam_df})',
-            'Entregues:': f'=COUNTA($C8:$C{tam_df})',
-            'Não Entregues:': '=$E3 - $E4'
-        }
-
-        #f'=COUNTIF($D8:$D{tam_df}, "ENVIADO")'
-        for index, text in enumerate(ref.items()):
-            self.ws.write(index+2,3, text[0],\
-                self.wb.add_format({'bold':True,'border':1,'align':'right'}))
-            
-            self.ws.write(index+2,4, text[1],\
-                self.wb.add_format({'border':1,'align':'center'}))
-            
-    def _colunas(self):
+class IFielding(metaclass=abc.ABCMeta):
+    @abc.abstractmethod
+    def field(self):
         for col_index, columns in enumerate(list(self.df.columns)):
-            self.ws.write(self.LIN_INDEX, col_index, columns,self.wb.add_format({'bold':True,'top':2, 'bg_color':'#a7b8ab','underline':True, 'align':'center'}))
+            celula = self.ws.cell(self.LIN_INDEX, col_index, columns)
+            celula.alignment = Alignment(horizontal='center')
 
-    def _matriz(self):
-        for index, row in self.df_matriz.iterrows():
-            #Adciona Nome e CNPJ apenas
-            for col_index, valor in enumerate(row):
-                self.ws.write(index + self.lin_data, col_index, valor,\
-                    self.wb.add_format({'border':3, 'align':'center'}))
-            
-            #Termina o df com espaços vazios
-            self.espacos_vazios(index)
+            # self.ws.write(self.LIN_INDEX, col_index, columns,self.wb.add_format({'bold':True,'top':2, 'bg_color':'#a7b8ab','underline':True, 'align':'center'}))
 
-    def _espacos_vazios(self, index):
-        for col_index in range(len(self.df.columns) - self.dif_data):
-            self.ws.write(index + self.lin_data, col_index + self.dif_data, '',\
-                self.wb.add_format({'border':3}))
-
-    def _data(self, df_matriz, df_recibo):
+class IDating(metaclass=abc.ABCMeta):
+    @abc.abstractmethod
+    def data(self, df_matriz, df_recibo):
         adcional = Adcional()
         encontrados = []
         for index_recibo, row_recibo in df_recibo.iterrows():
@@ -221,15 +134,151 @@ class Criacao:
                     else:
                         encontrados.append(row_recibo['CNPJ'])
                         for col_index, valor in enumerate(row_recibo):
-                            self.ws.write(index_matriz + self.lin_data, col_index, valor, self.wb.add_format({'border':3, 'align':'center'}))
+                            self.ws.cell\
+                            (index_matriz + self.lin_data, col_index, valor).alignment = Alignment(horizontal='center')
                     break
 
             if achado == False:
                 adcional.add_excluido(row_recibo)
         
         return adcional
+    
+    def width_ws(self, ws):
+        for index, valor in enumerate([40,20,15,20,15,20,20],1):
+            ws.column_dimensions[get_column_letter(index)].width = valor
 
-class Incremento:
+    def valid_adcionais(self, adcional):
+        if adcional.qnt_excluidos() != 0:
+            ws = self.wb.create_sheet('Não Relacionados')
+            self.width_ws(ws)
+            adcional.preencher(ws,'yellow')
+        
+        if adcional.qnt_repetidos() != 0:
+            ws = self.wb.create_sheet('Repetidos')
+            self.width_ws(ws)
+            adcional.preencher(ws,'cyan')
+    
+class Criacao (IFielding, IDating):
+    def __init__(self, titulo):
+        self.LIN_INDEX = 6
+        self.LIN_DATA = 7
+        self.titulo = titulo
+
+        self.wb = Workbook()
+        self.ws = self.wb.create_sheet('Relacionados')
+        self.width_ws(self.ws)
+
+    def criar(self, df_matriz, df_recibo, nome_arq):
+        self._cabecalho()
+        self._table_ref(df_matriz)
+        self.field()
+        self._matriz()
+        
+        adcional = self.data(df_matriz, df_recibo)
+
+        self.valid_adcionais(adcional)
+
+        self.wb.close()   
+
+        return adcional 
+
+    def _cabecalho(self):
+        # self.ws.write(0,0,f'RELATÓRIO DE CONFERÊNCIA {self.titulo}',\
+        #     self.wb.add_format({'bold': True, 'font_size': 26}))
+        
+        self.ws.cell(1,1, f'RELATÓRIO DE CONFERÊNCIA {self.titulo}').font = Font(size=26,
+                bold=True,)
+
+        # self.ws.write(2,0,'Competência',\
+        #     self.wb.add_format({'bold':True,'align':'right','font_size': 16}))
+        
+        self.ws.cell(3,1, 'Competência').font = Font(size=16, bold=True,)
+
+        #self.ws.write(2,1, self._data_confe())
+
+        self.ws.cell(3,2, self._data_confe())
+
+        # self.ws.write(3,0,'Data Entrega',\
+        #     self.wb.add_format({'bold':True,'align':'right','font_size': 16}))
+        
+        self.ws.cell(4,1, 'Data Entrega').font = Font(size=16, bold=True,)
+
+        #self.ws.write(3,1, datetime.now().strftime("%d/%m/%Y"))
+
+        self.ws.cell(4,2, datetime.now().strftime("%d/%m/%Y"))
+
+    def _data_confe(self):
+        data = f'{datetime.now().month - 1}/{datetime.now().year}'
+        data_format = datetime.strptime(data, '%m/%Y')
+        return data_format.strftime("%B/%Y".capitalize())
+
+    def _table_ref(self, df_matriz):
+        tam_df = len(df_matriz)+7
+        ref = {
+            'Obrigadas:': f'=COUNTA($A8:$A{tam_df})',
+            'Entregues:': f'=COUNTA($C8:$C{tam_df})',
+            'Não Entregues:': '=$E3 - $E4'
+        }
+
+        #f'=COUNTIF($D8:$D{tam_df}, "ENVIADO")'
+        for index, text in enumerate(ref.items()):
+            # self.ws.write(index+2,3, text[0],\
+            #     self.wb.add_format({'bold':True,'border':1,'align':'right'}))
+            
+            self.ws.cell(index + 3, 4, text[0]).font = Font(size=16)
+            
+            # self.ws.write(index+2,4, text[1],\
+            #     self.wb.add_format({'border':1,'align':'center'}))
+            
+            self.ws.cell(index + 3, 5, text[1]).font = Font(size=16)
+            
+    # def _colunas(self):
+    #     for col_index, columns in enumerate(list(self.df.columns)):
+    #         self.ws.write(self.LIN_INDEX, col_index, columns,self.wb.add_format({'bold':True,'top':2, 'bg_color':'#a7b8ab','underline':True, 'align':'center'}))
+
+    def _matriz(self):
+        for index, row in self.df_matriz.iterrows():
+            #Adciona Nome e CNPJ apenas
+            for col_index, valor in enumerate(row):
+                # self.ws.write(index + self.lin_data, col_index, valor,\
+                #     self.wb.add_format({'border':3, 'align':'center'}))
+                
+                self.ws.cell(index + self.LIN_DATA, col_index, valor).font = Font(size=16)
+            
+            #Termina o df com espaços vazios
+            self._espacos_vazios(index)
+
+    def _espacos_vazios(self, index):
+        for col_index in range(len(self.df.columns) - 2):
+            self.ws.write(index + self.lin_data, col_index + self.dif_data, '',\
+                self.wb.add_format({'border':3}))
+            
+            self.ws.cell(index + self.LIN_DATA, col_index + 2, '')
+
+    # def _data(self, df_matriz, df_recibo):
+    #     adcional = Adcional()
+    #     encontrados = []
+    #     for index_recibo, row_recibo in df_recibo.iterrows():
+    #         achado = False
+    #         #print(f'{row_recibo['CNPJ']} - CNPJ procurado')
+    #         for index_matriz, row_matriz in df_matriz.iterrows():
+    #             #print(f'{row_matriz['CNPJ']} - opções')
+    #             if row_recibo['CNPJ'] == row_matriz['CNPJ']:
+    #                 achado = True
+    #                 if row_recibo['CNPJ'] in encontrados:
+    #                     adcional.add_repetido(row_recibo)
+    #                 else:
+    #                     encontrados.append(row_recibo['CNPJ'])
+    #                     for col_index, valor in enumerate(row_recibo):
+    #                         self.ws.write(index_matriz + self.lin_data, col_index, valor, self.wb.add_format({'border':3, 'align':'center'}))
+    #                 break
+
+    #         if achado == False:
+    #             adcional.add_excluido(row_recibo)
+        
+    #     return adcional
+
+class Incremento (IDating):
     def __init__(self, wb, titulo):
         self.LIN_DATA = 4
         self.titulo = titulo
@@ -238,17 +287,9 @@ class Incremento:
         self.ws = self.wb['Relacionados']
 
     def incrementar(self, df_matriz, df_relatorio, nome_arq):
-        adcional = self._data(df_matriz, self._init_df(df_relatorio))
+        adcional = self.data(df_matriz, self._init_df(df_relatorio))
 
-        if adcional.qnt_excluidos() != 0:
-            ws = self.wb.create_sheet('Não Relacionados')
-            self._widht_ws(ws)
-            adcional.preencher(ws,'yellow')
-        
-        if self.repetidos.qnt_repetidos() != 0:
-            ws = self.wb.create_sheet('Repetidos')
-            self._widht_ws(ws)
-            adcional.preencher(ws,'cyan')
+        self.valid_adcionais(adcional)
 
         self.wb.save(nome_arq+'.xlsx')
 
@@ -262,30 +303,27 @@ class Incremento:
         return df_relatorio.drop([0,1,2,3,4,5,6])\
             .reset_index(drop=True)
         
-    def _data(self):
-        adcional = Adcional()
-        for index_recibo, row_recibo in self.df.iterrows():
-            achado = False
-            #print(f'{row_recibo['CNPJ']} - CNPJ procurado')
-            for index_matriz, row_matriz in self.df_relatorio.iterrows():
-                #print(f'{row_matriz['CNPJ']} - opções')
-                if row_recibo.iloc[1] == row_matriz.iloc[1]:
-                    achado = True
-                    if row_recibo.iloc[2] != '':
-                        adcional.add_repetido(row_recibo)
-                    for col_index, valor in enumerate(row_recibo):
-                        self.ws.cell\
-                            (index_matriz + self.lin_data+2, col_index+1, valor).alignment = Alignment(horizontal='center')
-                    break
+    # def _data(self):
+    #     adcional = Adcional()
+    #     for index_recibo, row_recibo in self.df.iterrows():
+    #         achado = False
+    #         #print(f'{row_recibo['CNPJ']} - CNPJ procurado')
+    #         for index_matriz, row_matriz in self.df_relatorio.iterrows():
+    #             #print(f'{row_matriz['CNPJ']} - opções')
+    #             if row_recibo.iloc[1] == row_matriz.iloc[1]:
+    #                 achado = True
+    #                 if row_recibo.iloc[2] != '':
+    #                     adcional.add_repetido(row_recibo)
+    #                 for col_index, valor in enumerate(row_recibo):
+    #                     self.ws.cell\
+    #                         (index_matriz + self.lin_data+2, col_index+1, valor).alignment = Alignment(horizontal='center')
+    #                 break
 
-            if achado == False:
-                adcional.add_excluido(row_recibo)
+    #         if achado == False:
+    #             adcional.add_excluido(row_recibo)
     
-    def _widht_ws(self, ws):
-        for index, valor in enumerate([40,20,15,20,15,20,20],1):
-            ws.column_dimensions[get_column_letter(index)].width = valor
 
-class Adcional:
+class Adcional(IFielding):
     def __init__(self, tipo, wb):
         self.tipo = tipo
         self.wb = wb
@@ -300,21 +338,20 @@ class Adcional:
 
     def qnt_excluidos(self):
         return len(self.excluidos)
-    
+
     def qnt_repetidos(self):
         return len(self.repetidos)
 
-class Criavel:
     def preencher(self, ws, cor):
         self.ws = ws
         self._titulo()
-        self._colunas()
-        self._excluidos(cor)
+        self.field()
+        self._data(cor)
 
     def _titulo(self):
         self.ws.write(0,0,f'EMPRESAS NÃO RELACIONADAS {self.titulo}', self.wb.add_format({'bold': True, 'font_size': 26}))
 
-    def _excluidos(self, cor):
+    def _data(self, cor):
         for index_recibo, row_recibo in enumerate(self.data):
             for col_index, valor in enumerate(row_recibo):
                 self.ws.write(index_recibo + self.lin_data, col_index, valor, self.wb.add_format({'border':3, 'align':'center', 'bg_color':cor}))
