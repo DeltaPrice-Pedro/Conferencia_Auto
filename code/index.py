@@ -170,7 +170,10 @@ class IDating:
 
         for index, adc in enumerate(adcionais):
             if adc.qnt_data() != 0:
-                ws = self.wb.create_sheet(ref[index])
+                if ref[index] in self.wb.sheetnames:
+                    ws = self.wb[ref[index]]
+                else:
+                    ws = self.wb.create_sheet(ref[index])
                 self.width_ws(ws)
                 adc.preencher(ws)
         
@@ -307,6 +310,7 @@ class Adcional(IFielding):
 
     def _data(self, ws):
         for index_recibo, row_recibo in enumerate(self.data, 1):
+            index_recibo = self._lin_disp(index_recibo, ws)
             for col_index, valor in enumerate(row_recibo, 1):
                 celula = ws.cell(index_recibo + self.LIN_INDEX, col_index, valor)
                 celula.alignment = Alignment(horizontal='center')
@@ -315,6 +319,10 @@ class Adcional(IFielding):
                                         end_color= self.cor,
                                         fill_type='solid')
 
+    def _lin_disp(self, index_recibo, ws):
+        if ws.cell(index_recibo + self.LIN_INDEX, 1).value == None:
+            return index_recibo
+        return self._lin_disp(index_recibo + 1, ws)
 
 class Competencia:
     def __init__(self):
@@ -714,7 +722,7 @@ class App:
                 messagebox.showinfo(title='Aviso', message= f'{adc.qnt_data()} empresas foram inseridas {ref[index]}') 
 
     def executar(self):
-        try:   
+        # try:   
             if self.matriz.envio_invalido():
                 raise Exception ('Insira alguma Matriz')
             elif self.recibos.envio_invalido():
@@ -743,11 +751,11 @@ class App:
 
             os.startfile(nome_arq+'.xlsx')
          
-        except (IndexError, TypeError):
-            messagebox.showerror(title='Aviso', message= 'Erro ao extrair o recibo, confira se a obrigação foi selecionada corretamente. Caso contrário, comunique ao desenvolvedor')
-        except KeyError:
-            messagebox.showerror(title='Aviso', message= 'Relatório ou Matriz inserido é inválido, certifique-se que inseriu o documento correto')
-        except Exception as error:
-            messagebox.showerror(title='Aviso', message= error)
+        # except (IndexError, TypeError):
+        #     messagebox.showerror(title='Aviso', message= 'Erro ao extrair o recibo, confira se a obrigação foi selecionada corretamente. Caso contrário, comunique ao desenvolvedor')
+        # except KeyError:
+        #     messagebox.showerror(title='Aviso', message= 'Relatório ou Matriz inserido é inválido, certifique-se que inseriu o documento correto')
+        # except Exception as error:
+        #     messagebox.showerror(title='Aviso', message= error)
        
 App()
