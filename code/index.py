@@ -722,7 +722,7 @@ class App:
                 messagebox.showinfo(title='Aviso', message= f'{adc.qnt_data()} empresas foram inseridas {ref[index]}') 
 
     def executar(self):
-        # try:   
+        try:   
             if self.matriz.envio_invalido():
                 raise Exception ('Insira alguma Matriz')
             elif self.recibos.envio_invalido():
@@ -751,11 +751,11 @@ class App:
 
             os.startfile(nome_arq+'.xlsx')
          
-        # except (IndexError, TypeError):
-        #     messagebox.showerror(title='Aviso', message= 'Erro ao extrair o recibo, confira se a obrigação foi selecionada corretamente. Caso contrário, comunique ao desenvolvedor')
-        # except KeyError:
-        #     messagebox.showerror(title='Aviso', message= 'Relatório ou Matriz inserido é inválido, certifique-se que inseriu o documento correto')
-        # except Exception as error:
-        #     messagebox.showerror(title='Aviso', message= error)
+        except (IndexError, TypeError):
+            messagebox.showerror(title='Aviso', message= 'Erro ao extrair o recibo, confira se a obrigação foi selecionada corretamente. Caso contrário, comunique ao desenvolvedor')
+        except KeyError:
+            messagebox.showerror(title='Aviso', message= 'Relatório ou Matriz inserido é inválido, certifique-se que inseriu o documento correto')
+        except Exception as error:
+            messagebox.showerror(title='Aviso', message= error)
        
 App()
