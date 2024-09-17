@@ -138,7 +138,7 @@ class IDating:
 
     def data(self, df_matriz, df_recibo):
         excluido = Adcional('FFF500', df_recibo, f'NÃO RELACIONADAS {self.titulo}')
-        repetido = Adcional('497BFF', df_recibo, f'REPETIDAS {self.titulo}')
+        repetido = Adcional('7795FF', df_recibo, f'REPETIDAS {self.titulo}')
         for index_recibo, row_recibo in df_recibo.iterrows():
             achado = False
             #print(f'{row_recibo} - CNPJ procurado')
