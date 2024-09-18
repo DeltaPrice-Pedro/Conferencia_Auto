@@ -145,12 +145,14 @@ class IDating:
         adcionais = [excluido, repetido, atrasado]
         for index_recibo, row_recibo in df_recibo.iterrows():
             #print(f'{row_recibo} - CNPJ procurado')
+            achado = False
             for index_matriz, row_matriz in df_matriz.iterrows():
                 #print(f'{row_matriz} - opções')
                 if row_recibo['Referência'] != data_confe:
                     atrasado.add_data(row_recibo)
                     break
                 if row_recibo['CNPJ'] == row_matriz['CNPJ']:
+                    achado = True
                     if self.ws.cell(index_matriz + self.LIN_DATA, 3).value != '':
                         repetido.add_data(row_recibo)
                     else:
@@ -160,6 +162,8 @@ class IDating:
                             celula.alignment = Alignment(horizontal='center')
                             celula.border = dashed_border
                     break
+
+            if achado == False:
                 excluido.add_data(row_recibo)
         
         return adcionais
