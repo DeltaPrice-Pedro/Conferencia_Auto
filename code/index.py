@@ -11,6 +11,7 @@ import copy
 import sys
 from datetime import *
 import locale
+import re
 
 from openpyxl import *
 from openpyxl.workbook import Workbook
@@ -136,16 +137,20 @@ class IFielding:
 
 class IDating:
 
-    def data(self, df_matriz, df_recibo):
+    def data(self, df_matriz, df_recibo, data_confe):
         excluido = Adcional('FFF500', df_recibo, f'NÃO RELACIONADAS {self.titulo}')
         repetido = Adcional('7795FF', df_recibo, f'REPETIDAS {self.titulo}')
+        atrasado = Adcional('FF6563', df_recibo, f'FORA DA COMPETÊNCIA {self.titulo}')
+
+        adcionais = [excluido, repetido, atrasado]
         for index_recibo, row_recibo in df_recibo.iterrows():
-            achado = False
             #print(f'{row_recibo} - CNPJ procurado')
             for index_matriz, row_matriz in df_matriz.iterrows():
                 #print(f'{row_matriz} - opções')
+                if row_recibo['Referência'] != data_confe:
+                    atrasado.add_data(row_recibo)
+                    break
                 if row_recibo['CNPJ'] == row_matriz['CNPJ']:
-                    achado = True
                     if self.ws.cell(index_matriz + self.LIN_DATA, 3).value != '':
                         repetido.add_data(row_recibo)
                     else:
@@ -155,18 +160,16 @@ class IDating:
                             celula.alignment = Alignment(horizontal='center')
                             celula.border = dashed_border
                     break
-
-            if achado == False:
                 excluido.add_data(row_recibo)
         
-        return [excluido,repetido]
+        return adcionais
     
     def width_ws(self, ws):
         for index, valor in enumerate([40,20,15,20,15,20,20],1):
             ws.column_dimensions[get_column_letter(index)].width = valor
 
     def valid_adcionais(self, adcionais):
-        ref = ['Não Relacionados', 'Repetidos']
+        ref = ['Não Relacionados', 'Repetidos', 'Fora da Competência']
 
         for index, adc in enumerate(adcionais):
             if adc.qnt_data() != 0:
@@ -188,13 +191,13 @@ class Criacao (IFielding, IDating):
         self.ws.title = 'Relacionados'
         self.width_ws(self.ws)
 
-    def criar(self, df_matriz, df_recibo, nome_arq):
-        self._cabecalho()
+    def criar(self, df_matriz, df_recibo, nome_arq, data_confe):
+        self._cabecalho(data_confe)
         self._table_ref(df_matriz)
         self.field(df_recibo, self.ws)
         self._matriz(df_matriz, df_recibo)
         
-        adcionais = self.data(df_matriz, df_recibo)
+        adcionais = self.data(df_matriz, df_recibo, data_confe)
 
         self.valid_adcionais(adcionais)
 
@@ -202,7 +205,7 @@ class Criacao (IFielding, IDating):
 
         return adcionais 
 
-    def _cabecalho(self):  
+    def _cabecalho(self, data_confe):  
         self.ws.cell(1,1, f'RELATÓRIO DE CONFERÊNCIA {self.titulo}').font = Font(size=26,
                 bold=True,)
         
@@ -210,18 +213,13 @@ class Criacao (IFielding, IDating):
         celula.font = Font(size=16, bold=True)
         celula.alignment = Alignment(horizontal= 'right')
 
-        self.ws.cell(3,2, self._data_confe())
+        self.ws.cell(3,2, data_confe)
         
         celula = self.ws.cell(4,1, 'Data Entrega')
         celula.font = Font(size=16, bold=True)
         celula.alignment = Alignment(horizontal= 'right')
 
         self.ws.cell(4,2, datetime.now().strftime("%d/%m/%Y"))
-
-    def _data_confe(self):
-        data = f'{datetime.now().month - 1}/{datetime.now().year}'
-        data_format = datetime.strptime(data, '%m/%Y')
-        return data_format.strftime("%B/%Y".capitalize())
 
     def _table_ref(self, df_matriz):
         tam_df = len(df_matriz)+7
@@ -269,7 +267,10 @@ class Incremento (IDating):
         self.ws = self.wb['Relacionados']
 
     def incrementar(self, df_matriz, df_relatorio, nome_arq):
-        adcionais = self.data(self._init_matriz(df_matriz), df_relatorio)
+        data_relatorio = self.ws.cell(3,2).value
+
+        adcionais = self.data(
+            self._init_matriz(df_matriz), df_relatorio, data_relatorio)
 
         self.valid_adcionais(adcionais)
 
@@ -357,9 +358,10 @@ class Des(Competencia):
             self.cnpj.append(tabela.iloc[0,1])
 
         ##Ref.
-        self.referencia.append(tabela.iloc[3,0]\
-            .replace('Referência: ','')\
-                    .replace(' No Protocolo:',''))
+        data_ref = tabela.iloc[3,0].replace('Referência: ','').replace(' No Protocolo:','')
+        data_format = datetime.strptime(data_ref, '%B/%Y')
+
+        self.referencia.append(data_format.strftime("%m/%Y"))
 
         ##Data e Hora
         col_dthr = tabela.iloc[4,0].replace('Data/Hora de Entrega: ','')\
@@ -539,7 +541,11 @@ class DCTF(Competencia):
         self.cnpj.append(tabela.iloc[3,0][6:24])
 
         ##Ref
-        self.referencia.append(tabela.iloc[3,0][34:])
+
+        data_ref = tabela.iloc[3,0][34:]
+        data_format = datetime.strptime(data_ref, '%b %Y')
+
+        self.referencia.append(data_format.strftime("%m/%Y"))
 
         data_row = tabela.iloc[54,0]\
             .replace('exigido este número de recibo: em ','')
@@ -580,7 +586,7 @@ class App:
         }
 
         self.tela()
-        self.index()
+        self.main()
         window.mainloop()
 
     def tela(self):
@@ -597,7 +603,25 @@ class App:
             os.path.dirname(os.path.abspath(__file__)))
         return os.path.join(base_path, relative_path)
 
-    def index(self):
+    def comp_formater(self, text, var, index, mode): 
+        #Só recebe valor que passa pelo validador
+        valor = text.get()
+        if len(valor) == 6 and '/' not in valor:
+           valor = valor[:2] + "/" + valor[2:]
+        else:
+            valor = valor.replace('/','')
+        text.set(valor)
+
+    def comp_validator(self, text):
+        padrao = r"^[-\d.,/]+$"  # Permite dígitos, ponto, vírgula, hífen e barra
+        if len(text) < 8:
+            if len(text) >= 7:
+                return re.match(padrao, text) is not None
+            elif len(text) in [0,6] or text.isdecimal():
+                return True
+        return False
+
+    def main(self):
         self.index = Frame(self.window, bd=4, bg='lightblue')
         self.index.place(relx=0.05,rely=0.05,relwidth=0.9,relheight=0.9)
 
@@ -605,20 +629,20 @@ class App:
         Label(self.index, text='Conferência Automática', background='lightblue', font=('arial',30,'bold')).place(relx=0.23,rely=0.18,relheight=0.15)
 
         #Logo
-        self.logo = PhotoImage(file=self.resource_path('imgs\\deltaprice-hori.png'))
+        self.logo = PhotoImage(file=self.resource_path('imgs\\conferencia_horizontal.png'))
         
-        self.logo = self.logo.subsample(4,4)
+        self.logo = self.logo.subsample(3,3)
         
         Label(self.window, image=self.logo, background='lightblue', border=0)\
-            .place(relx=0.205,rely=0.05,relwidth=0.7,relheight=0.2)
+            .place(relx=0.175,rely=0.05,relwidth=0.7,relheight=0.2)
 
         self.valIncrement = BooleanVar()
 
         self.valIncrement.set(False)
 
-        Radiobutton(self.index, text="Criar novo Relatório", value=False, variable= self.valIncrement).place(relx=0.45,rely=0.33)
+        Radiobutton(self.index, text="Criar novo Relatório", value=False, variable= self.valIncrement, command= lambda: self.entryCompe.config(state='normal')).place(relx=0.45,rely=0.33)
 
-        Radiobutton(self.index, text="Incrementar em Relatório antigo", value=True, variable= self.valIncrement).place(relx=0.65,rely=0.33)
+        Radiobutton(self.index, text="Incrementar em Relatório antigo", value=True, variable= self.valIncrement, command= lambda: self.entryCompe.config(state='disabled')).place(relx=0.65,rely=0.33)
 
         #Labels e Entrys
         ###########Matriz
@@ -655,11 +679,11 @@ class App:
         ###########EFD
         Label(self.index, text='Caso o nome da obrigação assesória não constar no nome do arquivo',\
             background='lightblue', font=("Arial", 12, 'bold italic'))\
-                .place(relx=0.15,rely=0.775)
+                .place(relx=0.2,rely=0.775)
 
         Label(self.index, text='Escolha a obrigação:',\
             background='lightblue', font=(10))\
-                .place(relx=0.15,rely=0.825)
+                .place(relx=0.2,rely=0.825)
         
         self.declaracaoEntry = StringVar()
 
@@ -668,7 +692,24 @@ class App:
         self.declaracaoEntry.set('Escolha aqui')
 
         self.popup = OptionMenu(self.index, self.declaracaoEntry, *self.declaracaoEntryOpt)\
-            .place(relx=0.375,rely=0.835,relwidth=0.2,relheight=0.06)
+            .place(relx=0.425,rely=0.835,relwidth=0.2,relheight=0.06)
+        
+        ###########Data Competência
+        
+        self.dt_compe = StringVar()
+
+        self.dt_compe.trace_add('write', lambda *args, passed = self.dt_compe:\
+            self.comp_formater(passed, *args) )
+
+        Label(self.index, text='Data da Competência:',\
+            background='lightblue', font=(10))\
+                .place(relx=0.2,rely=0.925)
+        
+
+        self.entryCompe = Entry(self.index, textvariable = self.dt_compe, \
+            validate ='key', validatecommand =(self.index.register(self.comp_validator), '%P'))
+        
+        self.entryCompe.place(relx=0.425,rely=0.925,relwidth=0.08,relheight=0.05)
 
         #Botão enviar
         Button(self.index, text='Gerar Conferencia',\
@@ -715,18 +756,25 @@ class App:
         ref = [
             'na aba "Não relacionadas" por não constarem na matriz',
             'com duplicidade. A segunda cópia foi inserida na aba "Repetidos"',
+            'com data de competência desigual ao informado. Estas foram separadadas na aba "Fora da Competência"'
             ]
 
         for index, adc in enumerate(adcionais):
             if adc.qnt_data() != 0:
                 messagebox.showinfo(title='Aviso', message= f'{adc.qnt_data()} empresas foram inseridas {ref[index]}') 
 
+    def _validar_compe(self):
+        if self.valIncrement.get() == False:
+            datetime.strptime(self.dt_compe.get(), '%m/%Y')
+
     def executar(self):
-        try:   
+        try:
             if self.matriz.envio_invalido():
                 raise Exception ('Insira alguma Matriz')
             elif self.recibos.envio_invalido():
                 raise Exception ('Insira algum Recibo')
+            
+            self._validar_compe()
 
             declaracao = self.declaracao()
             
@@ -743,7 +791,8 @@ class App:
                 wb_completo = self.matriz.load()
                 adcionais = Incremento(wb_completo, declaracao.to_string()).incrementar(df_matriz, df_recibo, nome_arq)
             else:
-                adcionais = Criacao(declaracao.to_string()).criar(df_matriz, df_recibo, nome_arq)
+                adcionais = Criacao(declaracao.to_string()).criar(
+                    df_matriz, df_recibo, nome_arq, self.dt_compe.get())
 
             self.avisar_adcionais(adcionais)
 
@@ -755,6 +804,8 @@ class App:
             messagebox.showerror(title='Aviso', message= 'Erro ao extrair o recibo, confira se a obrigação foi selecionada corretamente. Caso contrário, comunique ao desenvolvedor')
         except KeyError:
             messagebox.showerror(title='Aviso', message= 'Relatório ou Matriz inserido é inválido, certifique-se que inseriu o documento correto')
+        except ValueError:
+            messagebox.showerror(title='Aviso', message= 'Data de Competência inserida é inválida')
         except Exception as error:
             messagebox.showerror(title='Aviso', message= error)
        
