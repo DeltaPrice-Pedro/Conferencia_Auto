@@ -195,7 +195,7 @@ class Criacao (IFielding, IDating):
         self.ws.title = 'Relacionados'
         self.width_ws(self.ws)
 
-    def criar(self, df_matriz, df_recibo, nome_arq, data_confe):
+    def criar(self, df_matriz, df_recibo, nome_arq, data_confe, nome_funcio):
         self._cabecalho(data_confe)
         self._table_ref(df_matriz)
         self.field(df_recibo, self.ws)
@@ -204,6 +204,8 @@ class Criacao (IFielding, IDating):
         adcionais = self.data(df_matriz, df_recibo, data_confe)
 
         self.valid_adcionais(adcionais)
+
+        self._rodape(len(df_matriz), nome_funcio)
 
         self.wb.save(nome_arq+'.xlsx') 
 
@@ -261,6 +263,19 @@ class Criacao (IFielding, IDating):
         for col_index in range(len(df_recibo.columns) - dif_cnpj):
             self.ws.cell(index + self.LIN_DATA, col_index + dif_cnpj + 1, '')\
                 .border = dashed_border
+            
+    def _rodape(self, ultima_linha, nome_funcio):
+        ultima_linha = ultima_linha + 2
+        celula = self.ws.cell(ultima_linha + self.LIN_DATA, 1, 'Assinatura responsável: ')
+        celula.alignment = Alignment(horizontal='right')
+        celula.font = Font(bold=True)
+        
+        self.ws.cell(ultima_linha + self.LIN_DATA, 2, '_'*20)
+        
+        celula = self.ws.cell(ultima_linha + self.LIN_DATA + 1, 2, nome_funcio)
+        celula.alignment = Alignment(horizontal='center')
+        celula.font = Font(bold=True)
+
 
 class Incremento (IDating):
     def __init__(self, wb, titulo):
@@ -669,16 +684,25 @@ class App:
 
         self.arqLabel = Listbox(self.index, border= 0)
         self.arqLabel.config(font=("Arial", 8, 'bold italic'))
-        self.arqLabel.place(relx=0.21,rely=0.55,relwidth=0.675, relheight=0.2)
+        self.arqLabel.place(relx=0.21,rely=0.55,relwidth=0.675, relheight=0.1)
 
         self.barra = Scrollbar(self.index, command= self.arqLabel.yview)\
-            .place(relx=0.875,rely=0.55,relwidth=0.03, relheight=0.2)
+            .place(relx=0.875,rely=0.55,relwidth=0.03, relheight=0.1)
         
         self.arqLabel.config(yscrollcommand= self.barra)
         
         Button(self.index, text='Enviar',\
             command = lambda: self.recibos.inserir(self.arqLabel))\
                 .place(relx=0.15,rely=0.55,relwidth=0.06,relheight=0.055)
+
+        self.nome_funcio = StringVar()
+
+        ###########Nome Funcionário
+        Label(self.index, text='Nome do responsável:',\
+            background='lightblue', font=(10))\
+                .place(relx=0.15,rely=0.65)
+
+        Entry(self.index, border= 0, font=("Arial", 8, 'bold italic'), textvariable=self.nome_funcio).place(relx=0.21,rely=0.7,relwidth=0.675, relheight=0.05)
 
         ###########EFD
         Label(self.index, text='Caso o nome da obrigação assesória não constar no nome do arquivo',\
@@ -772,11 +796,13 @@ class App:
             datetime.strptime(self.dt_compe.get(), '%m/%Y')
 
     def executar(self):
-        try:
+        # try:
             if self.matriz.envio_invalido():
                 raise Exception ('Insira alguma Matriz')
             elif self.recibos.envio_invalido():
                 raise Exception ('Insira algum Recibo')
+            elif self.nome_funcio.get() == '':
+                raise Exception ('Insira seu nome')
             
             self._validar_compe()
 
@@ -796,7 +822,7 @@ class App:
                 adcionais = Incremento(wb_completo, declaracao.to_string()).incrementar(df_matriz, df_recibo, nome_arq)
             else:
                 adcionais = Criacao(declaracao.to_string()).criar(
-                    df_matriz, df_recibo, nome_arq, self.dt_compe.get())
+                    df_matriz, df_recibo, nome_arq, self.dt_compe.get(),self.nome_funcio.get())
 
             self.avisar_adcionais(adcionais)
 
@@ -804,13 +830,13 @@ class App:
 
             os.startfile(nome_arq+'.xlsx')
          
-        except (IndexError, TypeError):
-            messagebox.showerror(title='Aviso', message= 'Erro ao extrair o recibo, confira se a obrigação foi selecionada corretamente. Caso contrário, comunique ao desenvolvedor')
-        except KeyError:
-            messagebox.showerror(title='Aviso', message= 'Relatório ou Matriz inserido é inválido, certifique-se que inseriu o documento correto')
-        except ValueError:
-            messagebox.showerror(title='Aviso', message= 'Data de Competência inserida é inválida')
-        except Exception as error:
-            messagebox.showerror(title='Aviso', message= error)
+        # except (IndexError, TypeError):
+        #     messagebox.showerror(title='Aviso', message= 'Erro ao extrair o recibo, confira se a obrigação foi selecionada corretamente. Caso contrário, comunique ao desenvolvedor')
+        # except KeyError:
+        #     messagebox.showerror(title='Aviso', message= 'Relatório ou Matriz inserido é inválido, certifique-se que inseriu o documento correto')
+        # except ValueError:
+        #     messagebox.showerror(title='Aviso', message= 'Data de Competência inserida é inválida')
+        # except Exception as error:
+        #     messagebox.showerror(title='Aviso', message= error)
        
 App()
