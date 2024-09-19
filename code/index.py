@@ -125,8 +125,13 @@ class Recibo(Arquivo):
 
 class IFielding:
 
-    def field(self, df_recibo, ws):
-        for col_index, columns in enumerate(list(df_recibo.columns), 1):
+    def field(self, df_recibo, ws, adc=''):
+        colunas_recibo = df_recibo.columns.tolist()
+
+        if adc != '':
+            colunas_recibo.append(adc)
+
+        for col_index, columns in enumerate(list(colunas_recibo), 1):
             celula = ws.cell(self.LIN_INDEX, col_index, columns)
             celula.font = Font(bold=True, underline='single')
             celula.alignment = Alignment(horizontal='center')
@@ -215,17 +220,18 @@ class Criacao (IFielding, IDating):
         self.ws.cell(1,1, f'RELATÓRIO DE CONFERÊNCIA {self.titulo}').font = Font(size=26,
                 bold=True,)
         
-        celula = self.ws.cell(3,1, 'Competência')
-        celula.font = Font(size=16, bold=True)
-        celula.alignment = Alignment(horizontal= 'right')
+        ref = {
+            'Competência': data_confe,
+            'Data Entrega': datetime.now().strftime("%d/%m/%Y"),
+            'Hora Entrega': datetime.now().strftime("%H:%M:%S")
+            }
 
-        self.ws.cell(3,2, data_confe)
-        
-        celula = self.ws.cell(4,1, 'Data Entrega')
-        celula.font = Font(size=16, bold=True)
-        celula.alignment = Alignment(horizontal= 'right')
+        for index, text in enumerate(ref.items(), 3):
+            celula = self.ws.cell(index, 1, text[0])
+            celula.font = Font(size=16, bold=True)
+            celula.alignment = Alignment(horizontal= 'right')
 
-        self.ws.cell(4,2, datetime.now().strftime("%d/%m/%Y"))
+            self.ws.cell(index, 2, text[1]).alignment = Alignment(horizontal= 'left')
 
     def _table_ref(self, df_matriz):
         tam_df = len(df_matriz)+7
@@ -322,7 +328,7 @@ class Adcional(IFielding):
 
     def preencher(self, ws):
         self._titulo(ws)
-        self.field(self.df_recibo, ws)
+        self.field(self.df_recibo, ws, 'Observações')
         self._data(ws)
 
     def _titulo(self, ws):
@@ -698,7 +704,7 @@ class App:
         self.nome_funcio = StringVar()
 
         ###########Nome Funcionário
-        Label(self.index, text='Nome do responsável:',\
+        Label(self.index, text='Responsável Conferência:',\
             background='lightblue', font=(10))\
                 .place(relx=0.15,rely=0.65)
 
