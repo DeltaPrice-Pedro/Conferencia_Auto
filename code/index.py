@@ -665,9 +665,9 @@ class App:
 
         self.valIncrement.set(False)
 
-        Radiobutton(self.index, text="Criar novo Relatório", value=False, variable= self.valIncrement, command= lambda: self.entryCompe.config(state='normal')).place(relx=0.45,rely=0.33)
+        Radiobutton(self.index, text="Criar novo Relatório", value=False, variable= self.valIncrement, command= lambda: self.alterEstado('normal')).place(relx=0.45,rely=0.33)
 
-        Radiobutton(self.index, text="Incrementar em Relatório antigo", value=True, variable= self.valIncrement, command= lambda: self.entryCompe.config(state='disabled')).place(relx=0.65,rely=0.33)
+        Radiobutton(self.index, text="Incrementar em Relatório antigo", value=True, variable= self.valIncrement, command= lambda: self.alterEstado('disabled')).place(relx=0.65,rely=0.33)
 
         #Labels e Entrys
         ###########Matriz
@@ -705,10 +705,28 @@ class App:
 
         ###########Nome Funcionário
         Label(self.index, text='Responsável Conferência:',\
-            background='lightblue', font=(10))\
-                .place(relx=0.15,rely=0.65)
+            background='lightblue', font=("Arial", 10, 'bold'))\
+                .place(relx=0.2,rely=0.65)
 
-        Entry(self.index, border= 0, font=("Arial", 8, 'bold italic'), textvariable=self.nome_funcio).place(relx=0.21,rely=0.7,relwidth=0.675, relheight=0.05)
+        self.entryFunc = Entry(self.index, border= 0, font=("Arial", 8, 'bold italic'), textvariable=self.nome_funcio)
+        self.entryFunc.place(relx=0.21,rely=0.7,relwidth=0.375, relheight=0.05)
+
+        ###########Data Competência
+        
+        self.dt_compe = StringVar()
+
+        self.dt_compe.trace_add('write', lambda *args, passed = self.dt_compe:\
+            self.comp_formater(passed, *args) )
+
+        Label(self.index, text='Data da Competência:',\
+            background='lightblue', font=("Arial", 10, 'bold'))\
+                .place(relx=0.65,rely=0.65)
+        
+
+        self.entryCompe = Entry(self.index, textvariable = self.dt_compe, \
+            validate ='key', validatecommand =(self.index.register(self.comp_validator), '%P'))
+        
+        self.entryCompe.place(relx=0.7,rely=0.7,relwidth=0.08,relheight=0.05)
 
         ###########EFD
         Label(self.index, text='Caso o nome da obrigação assesória não constar no nome do arquivo',\
@@ -728,27 +746,16 @@ class App:
         self.popup = OptionMenu(self.index, self.declaracaoEntry, *self.declaracaoEntryOpt)\
             .place(relx=0.425,rely=0.835,relwidth=0.2,relheight=0.06)
         
-        ###########Data Competência
-        
-        self.dt_compe = StringVar()
-
-        self.dt_compe.trace_add('write', lambda *args, passed = self.dt_compe:\
-            self.comp_formater(passed, *args) )
-
-        Label(self.index, text='Data da Competência:',\
-            background='lightblue', font=(10))\
-                .place(relx=0.2,rely=0.925)
-        
-
-        self.entryCompe = Entry(self.index, textvariable = self.dt_compe, \
-            validate ='key', validatecommand =(self.index.register(self.comp_validator), '%P'))
-        
-        self.entryCompe.place(relx=0.425,rely=0.925,relwidth=0.08,relheight=0.05)
-
         #Botão enviar
         Button(self.index, text='Gerar Conferencia',\
             command= lambda: self.executar())\
                 .place(relx=0.65,rely=0.85,relwidth=0.25,relheight=0.12)
+        
+    def alterEstado(self, estado):
+        ref = [self.entryCompe, self.entryFunc]
+
+        for entry in ref:
+            entry.config(state= estado)
         
     def declaracao(self):
         itens_label = self.arqLabel.get(0,END)
@@ -802,7 +809,7 @@ class App:
             datetime.strptime(self.dt_compe.get(), '%m/%Y')
 
     def executar(self):
-        # try:
+        try:
             if self.matriz.envio_invalido():
                 raise Exception ('Insira alguma Matriz')
             elif self.recibos.envio_invalido():
@@ -836,13 +843,13 @@ class App:
 
             os.startfile(nome_arq+'.xlsx')
          
-        # except (IndexError, TypeError):
-        #     messagebox.showerror(title='Aviso', message= 'Erro ao extrair o recibo, confira se a obrigação foi selecionada corretamente. Caso contrário, comunique ao desenvolvedor')
-        # except KeyError:
-        #     messagebox.showerror(title='Aviso', message= 'Relatório ou Matriz inserido é inválido, certifique-se que inseriu o documento correto')
-        # except ValueError:
-        #     messagebox.showerror(title='Aviso', message= 'Data de Competência inserida é inválida')
-        # except Exception as error:
-        #     messagebox.showerror(title='Aviso', message= error)
+        except (IndexError, TypeError):
+            messagebox.showerror(title='Aviso', message= 'Erro ao extrair o recibo, confira se a obrigação foi selecionada corretamente. Caso contrário, comunique ao desenvolvedor')
+        except KeyError:
+            messagebox.showerror(title='Aviso', message= 'Relatório ou Matriz inserido é inválido, certifique-se que inseriu o documento correto')
+        except ValueError:
+            messagebox.showerror(title='Aviso', message= 'Data de Competência inserida é inválida')
+        except Exception as error:
+            messagebox.showerror(title='Aviso', message= error)
        
 App()
