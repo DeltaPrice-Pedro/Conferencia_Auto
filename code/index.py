@@ -806,6 +806,8 @@ class App:
 
     def _validar_compe(self):
         if self.valIncrement.get() == False:
+            if self.nome_funcio.get() == '':
+                raise Exception ('Insira o nome do responsável')
             datetime.strptime(self.dt_compe.get(), '%m/%Y')
 
     def executar(self):
@@ -814,8 +816,6 @@ class App:
                 raise Exception ('Insira alguma Matriz')
             elif self.recibos.envio_invalido():
                 raise Exception ('Insira algum Recibo')
-            elif self.nome_funcio.get() == '':
-                raise Exception ('Insira seu nome')
             
             self._validar_compe()
 
