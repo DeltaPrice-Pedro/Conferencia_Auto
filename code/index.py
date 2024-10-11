@@ -417,6 +417,7 @@ class Reinf(Competencia):
         self.num_dom = []
         self.situacao = []
         self.titulo = 'EFD REINF'
+        self.margem_erro = 5
 
     def add_linha(self, arquivo):
         arquivo = tb.read_pdf(arquivo, pages=1, stream=True,\
@@ -430,10 +431,12 @@ class Reinf(Competencia):
         self.num_dom.append(prim_linha[:prim_linha.find('-')-1])
 
         ##Nome empresa
-        self.nome_emp.append(prim_linha[prim_linha.find('-')+2:])
-
         ##CNPJ
-        self.cnpj.append(tabela.iloc[0,1][:18])
+        if isinstance(tabela.iloc[0,1], float):
+            self.filtrar_cols(tabela)
+        else:
+            self.nome_emp.append(prim_linha[prim_linha.find('-')+2:])
+            self.cnpj.append(tabela.iloc[0,1][:18])
 
         ##Ref
         self.referencia.append(tabela.iloc[0,2])
@@ -447,6 +450,22 @@ class Reinf(Competencia):
         self.data.append(col_dthr[:10])
 
         self.hora.append(col_dthr[12:])
+
+    def filtrar_cols(self, tabela):
+        nome_filtrado = re.sub('[0-9./-]', '', tabela.iloc[0,0])
+        self.nome_emp.append(nome_filtrado)
+        
+        cnpj_filtrado = re.sub('[^0-9!./-]', '', \
+            tabela.iloc[0,0][len(nome_filtrado) - self.margem_erro:])
+        
+        cnpj_filtrado = cnpj_filtrado[len(cnpj_filtrado) - 18:]
+
+        for caractere, max in {'/':1, '-':1, '.':2}.items():
+            if cnpj_filtrado.count(caractere) > max:
+                cnpj_filtrado = cnpj_filtrado[:cnpj_filtrado.find(caractere)] + \
+                    cnpj_filtrado[cnpj_filtrado.find(caractere) + 1:]
+                
+        self.cnpj.append(cnpj_filtrado)
 
     def gerar_df(self):
         return pd.DataFrame({
@@ -811,7 +830,7 @@ class App:
             datetime.strptime(self.dt_compe.get(), '%m/%Y')
 
     def executar(self):
-        try:
+        #try:
             if self.matriz.envio_invalido():
                 raise Exception ('Insira alguma Matriz')
             elif self.recibos.envio_invalido():
@@ -843,13 +862,13 @@ class App:
 
             os.startfile(nome_arq+'.xlsx')
          
-        except (IndexError, TypeError):
-            messagebox.showerror(title='Aviso', message= 'Erro ao extrair o recibo, confira se a obrigação foi selecionada corretamente. Caso contrário, comunique ao desenvolvedor')
-        except KeyError:
-            messagebox.showerror(title='Aviso', message= 'Relatório ou Matriz inserido é inválido, certifique-se que inseriu o documento correto')
-        except ValueError:
-            messagebox.showerror(title='Aviso', message= 'Data de Competência inserida é inválida')
-        except Exception as error:
-            messagebox.showerror(title='Aviso', message= error)
+        # except (IndexError, TypeError):
+        #     messagebox.showerror(title='Aviso', message= 'Erro ao extrair o recibo, confira se a obrigação foi selecionada corretamente. Caso contrário, comunique ao desenvolvedor')
+        # except KeyError:
+        #     messagebox.showerror(title='Aviso', message= 'Relatório ou Matriz inserido é inválido, certifique-se que inseriu o documento correto')
+        # except ValueError:
+        #     messagebox.showerror(title='Aviso', message= 'Data de Competência inserida é inválida')
+        # except Exception as error:
+        #     messagebox.showerror(title='Aviso', message= error)
        
 App()
