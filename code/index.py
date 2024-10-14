@@ -149,14 +149,14 @@ class IDating:
 
         adcionais = [excluido, repetido, atrasado]
         for index_recibo, row_recibo in df_recibo.iterrows():
-            #print(f'{row_recibo} - CNPJ procurado')
+            # print(f'{row_recibo} - CNPJ procurado')
             achado = False
             for index_matriz, row_matriz in df_matriz.iterrows():
-                #print(f'{row_matriz} - opções')
+                # print(f'{row_matriz} - opções')
                 if row_recibo['Referência'] != data_confe:
                     atrasado.add_data(row_recibo)
                     break
-                if row_recibo['CNPJ'] == row_matriz['CNPJ']:
+                if str(row_recibo['CNPJ']).strip() == str(row_matriz['CNPJ']).strip():
                     achado = True
                     if self.ws.cell(index_matriz + self.LIN_DATA, 3).value != '':
                         repetido.add_data(row_recibo)
@@ -630,10 +630,14 @@ class ICMS(Competencia):
         self.cnpj.append(tabela.iloc[4,0][10:29])
 
         ##Ref
-        self.ref.append(tabela.iloc[6,0].replace('Período: 01/','')[:7])
+        self.referencia.append(tabela.iloc[6,0].replace('Período: 01/','')[:7])
 
         ##Data e Hora
         col_dthr = tabela.iloc[19,0][23:]
+        if col_dthr == '':
+            col_dthr = tabela.iloc[20,0][3:]
+        elif col_dthr[2] != '/':
+            col_dthr = tabela.iloc[30,0][23:]
 
         self.data.append(col_dthr[:10])
 
@@ -643,7 +647,7 @@ class ICMS(Competencia):
         return pd.DataFrame({
             'Nome': self.nome_emp,
             'CNPJ': self.cnpj,
-            'Referência': self.ref,
+            'Referência': self.referencia,
             'Data': self.data,
             'Hora': self.hora
             })
@@ -868,7 +872,7 @@ class App:
             datetime.strptime(self.dt_compe.get(), '%m/%Y')
 
     def executar(self):
-        try:
+        # try:
             if self.matriz.envio_invalido():
                 raise Exception ('Insira alguma Matriz')
             elif self.recibos.envio_invalido():
@@ -900,13 +904,13 @@ class App:
 
             os.startfile(nome_arq+'.xlsx')
          
-        except (IndexError, TypeError):
-            messagebox.showerror(title='Aviso', message= 'Erro ao extrair o recibo, confira se a obrigação foi selecionada corretamente. Caso contrário, comunique ao desenvolvedor')
-        except KeyError:
-            messagebox.showerror(title='Aviso', message= 'Relatório ou Matriz inserido é inválido, certifique-se que inseriu o documento correto')
-        except ValueError:
-            messagebox.showerror(title='Aviso', message= 'Data de Competência inserida é inválida')
-        except Exception as error:
-            messagebox.showerror(title='Aviso', message= error)
+        # except (IndexError, TypeError):
+        #     messagebox.showerror(title='Aviso', message= 'Erro ao extrair o recibo, confira se a obrigação foi selecionada corretamente. Caso contrário, comunique ao desenvolvedor')
+        # except KeyError:
+        #     messagebox.showerror(title='Aviso', message= 'Relatório ou Matriz inserido é inválido, certifique-se que inseriu o documento correto')
+        # except ValueError:
+        #     messagebox.showerror(title='Aviso', message= 'Data de Competência inserida é inválida')
+        # except Exception as error:
+        #     messagebox.showerror(title='Aviso', message= error)
        
 App()
