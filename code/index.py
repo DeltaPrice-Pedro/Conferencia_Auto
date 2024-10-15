@@ -87,7 +87,7 @@ class Matriz(Arquivo):
             messagebox.showerror(title='Aviso', message= error)
 
     def ler(self):
-        return pd.read_excel(self.caminho, na_filter=False, usecols='A:B')
+        return pd.read_excel(self.caminho, na_filter=False, usecols='A:B', header=None)
     
     def load(self):
         return load_workbook(self.caminho)
@@ -156,7 +156,7 @@ class IDating:
                 if row_recibo['Referência'] != data_confe:
                     atrasado.add_data(row_recibo)
                     break
-                if str(row_recibo['CNPJ']).strip() == str(row_matriz['CNPJ']).strip():
+                if str(row_recibo['CNPJ']).strip() == str(row_matriz.iloc[1]).strip():
                     achado = True
                     if self.ws.cell(index_matriz + self.LIN_DATA, 3).value != '':
                         repetido.add_data(row_recibo)
@@ -638,8 +638,12 @@ class ICMS(Competencia):
             col_dthr = tabela.iloc[20,0][3:]
         elif col_dthr[2] != '/':
             col_dthr = tabela.iloc[30,0][23:]
+            if '/' not in col_dthr:
+                col_dthr = tabela.iloc[26,0][3:]
+                if not col_dthr[0].isdigit():
+                    col_dthr = tabela.iloc[25,0][23:]
 
-        self.data.append(col_dthr[:10])
+        self.data.append(col_dthr[:11])
 
         self.hora.append(col_dthr[14:])
 
