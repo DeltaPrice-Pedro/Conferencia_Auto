@@ -656,6 +656,43 @@ class ICMS(Competencia):
             'Hora': self.hora
             })
 
+class DCTFWEB(Competencia):
+    def __init__(self):
+        super().__init__()
+        self.valor = []
+        self.anexo = []
+        self.titulo = 'DCTF WEB'
+
+    def add_linha(self, arquivo: str):
+        tabela = tb.read_pdf(arquivo, pages=1, stream=True,\
+                    relative_area=True ,area=[0,0,80,100])[0]
+
+        ##Nome Empresa
+        self.nome_emp.append(tabela.iloc[2,0][19:])
+
+        ##CNPJ
+        self.cnpj.append(tabela.iloc[2,0][:18])
+
+        penultima_linha = len(tabela) - 2
+
+        ##Data
+        self.data.append(tabela.iloc[penultima_linha, 2][:10])
+
+        ##Ref
+        self.referencia.append(tabela.iloc[penultima_linha, 2][3:10])
+
+        ##Hora
+        self.hora.append(tabela.iloc[penultima_linha, 2][11:])
+
+    def gerar_df(self):
+        return pd.DataFrame({
+            'Nome': self.nome_emp,
+            'CNPJ': self.cnpj,
+            'Referência': self.referencia,
+            'Data': self.data,
+            'Hora': self.hora
+            })
+
 class App:
     def __init__(self):
         self.window = window
@@ -669,6 +706,7 @@ class App:
             'contribuições' : Contribuicoes(),
             'simples nacional': SimplesNacional(),
             'sn': SimplesNacional(),
+            'dctfweb': DCTFWEB(),
             'dctf': DCTF(),
             'icms': ICMS()
         }
@@ -803,7 +841,7 @@ class App:
         self.declaracaoEntry = StringVar()
 
         self.declaracaoEntryOpt = [
-            "DES", "REINF", "CONTRIBUIÇÕES", "SIMPLES NACIONAL", "DCTF", "ICMS"
+            "DES", "REINF", "CONTRIBUIÇÕES", "SIMPLES NACIONAL", "DCTF", "DCTF WEB", "ICMS"
             ]
 
         self.declaracaoEntry.set('Escolha aqui')
@@ -876,7 +914,7 @@ class App:
             datetime.strptime(self.dt_compe.get(), '%m/%Y')
 
     def executar(self):
-        # try:
+        try:
             if self.matriz.envio_invalido():
                 raise Exception ('Insira alguma Matriz')
             elif self.recibos.envio_invalido():
@@ -908,13 +946,13 @@ class App:
 
             os.startfile(nome_arq+'.xlsx')
          
-        # except (IndexError, TypeError):
-        #     messagebox.showerror(title='Aviso', message= 'Erro ao extrair o recibo, confira se a obrigação foi selecionada corretamente. Caso contrário, comunique ao desenvolvedor')
-        # except KeyError:
-        #     messagebox.showerror(title='Aviso', message= 'Relatório ou Matriz inserido é inválido, certifique-se que inseriu o documento correto')
-        # except ValueError:
-        #     messagebox.showerror(title='Aviso', message= 'Data de Competência inserida é inválida')
-        # except Exception as error:
-        #     messagebox.showerror(title='Aviso', message= error)
+        except (IndexError, TypeError):
+            messagebox.showerror(title='Aviso', message= 'Erro ao extrair o recibo, confira se a obrigação foi selecionada corretamente. Caso contrário, comunique ao desenvolvedor')
+        except KeyError:
+            messagebox.showerror(title='Aviso', message= 'Relatório ou Matriz inserido é inválido, certifique-se que inseriu o documento correto')
+        except ValueError:
+            messagebox.showerror(title='Aviso', message= 'Data de Competência inserida é inválida')
+        except Exception as error:
+            messagebox.showerror(title='Aviso', message= error)
        
 App()
