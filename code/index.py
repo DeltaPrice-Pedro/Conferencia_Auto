@@ -693,6 +693,45 @@ class DCTFWEB(Competencia):
             'Hora': self.hora
             })
 
+class EFD_REINF(Competencia):
+    def __init__(self):
+        super().__init__()
+        self.titulo = 'EFD REINF'
+
+    def add_linha(self, arquivo: str):
+        tabela = pd.read_excel(arquivo, skiprows= 6, usecols= [0,5,7,8,12,14],\
+                        dtype= {'Inscrição':str})
+
+        tabela = tabela.loc[tabela['Evento'] == 'R-4099 - Fechamento/reabertura dos eventos da série R-4000']
+
+        for row in tabela.itertuples():
+            ##Nome empresa
+            posic = str(row[1]).find('-')
+            self.nome_emp.append(row[1][posic + 1:])
+
+            # ##CNPJ
+            s = list(row[2])
+            for i, x in {2:'.',6:'.',10:'/',15:'-'}.items():
+                s.insert(i,x)
+            self.cnpj.append(''.join(s))
+
+            ##Ref
+            self.referencia.append(datetime.strftime(row[3], '%m/%Y'))
+
+            ##Data e Hora
+            self.data.append(row[6][:10])
+
+            self.hora.append(row[6][12:])
+
+    def gerar_df(self):
+        return pd.DataFrame({
+            'Nome': self.nome_emp,
+            'CNPJ': self.cnpj,
+            'Referência': self.referencia,
+            'Data': self.data,
+            'Hora': self.hora
+            })
+
 class App:
     def __init__(self):
         self.window = window
