@@ -3,7 +3,7 @@ from tkinter import messagebox
 from tkinter.filedialog import askopenfilenames, askopenfilename, asksaveasfilename
 import tabula as tb
 import pandas as pd
-
+from abc import abstractmethod, ABCMeta
 from unidecode import unidecode
 import string
 import os
@@ -38,7 +38,7 @@ window = Tk()
 
 class Arquivo:
     def __init__(self):
-        self.tipos_validos = ''
+        self.tipos_validos = ['']
 
     def validar_entrada(self, caminho):
         if any(c not in string.ascii_letters for c in caminho):
@@ -48,7 +48,7 @@ class Arquivo:
         return caminho
 
     def __tipo(self, caminho):
-        if caminho[len(caminho) -3 :] != self.tipos_validos:
+        if caminho[len(caminho) -3 :] not in self.tipos_validos:
             ultima_barra = caminho.rfind('/')
             raise Exception(
                 f'Formato inválido do arquivo: {caminho[ultima_barra+1:]}')
@@ -64,7 +64,7 @@ class Arquivo:
 class Matriz(Arquivo):
     def __init__(self):
         super().__init__()
-        self.tipos_validos = 'lsx'
+        self.tipos_validos = ['lsx']
         self.caminho = ''
 
     def inserir(self, label):
@@ -95,7 +95,7 @@ class Matriz(Arquivo):
 class Recibo(Arquivo):
     def __init__(self):
         super().__init__()
-        self.tipos_validos = 'pdf'
+        self.tipos_validos = ['pdf', 'lsx']
         self.caminho = []
 
     def get_caminho(self):
@@ -149,32 +149,42 @@ class IDating:
 
         adcionais = [excluido, repetido, atrasado]
         for index_recibo, row_recibo in df_recibo.iterrows():
-            # print(f'{row_recibo} - CNPJ procurado')
+            # print(f'{row_recibo['CNPJ']} - CNPJ procurado')
+            preenchivel = False
             achado = False
             for index_matriz, row_matriz in df_matriz.iterrows():
-                # print(f'{row_matriz} - opções')
-                if row_recibo['Referência'] != data_confe:
-                    atrasado.add_data(row_recibo)
-                    break
-                if str(row_recibo['CNPJ']).strip() == str(row_matriz.iloc[1]).strip():
-                    achado = True
-                    if self.ws.cell(index_matriz + self.LIN_DATA, 3).value != '':
-                        repetido.add_data(row_recibo)
-                    else:
-                        for col_index, valor in enumerate(row_recibo, 1):
-                            celula = self.ws.cell\
-                            (index_matriz + self.LIN_DATA, col_index, valor)
-                            celula.alignment = Alignment(horizontal='center')
-                            celula.border = dashed_border
-                    break
+                # print(f'{row_matriz.iloc[1]} - opções')
 
+                if str(row_recibo['CNPJ']).strip() == \
+                    str(row_matriz.iloc[1]).strip():
+                    preenchivel = True
+                    achado = True
+
+                    if row_recibo['Referência'] != data_confe:
+                        preenchivel = False
+                        atrasado.add_data(row_recibo)
+                    
+                    if self.ws.cell(index_matriz + self.LIN_DATA, 3).value != '':
+                        preenchivel = False
+                        repetido.add_data(row_recibo)
+                    
+                    # break
             if achado == False:
                 excluido.add_data(row_recibo)
-        
+            elif achado == True and preenchivel == True:
+                self.preencher_data(row_recibo, index_matriz)
+
         return adcionais
+
+    def preencher_data(self, row_recibo, index_matriz):
+        for col_index, valor in enumerate(row_recibo, 1):
+            celula = self.ws.cell\
+                        (index_matriz + self.LIN_DATA, col_index, valor)
+            celula.alignment = Alignment(horizontal='center')
+            celula.border = dashed_border
     
     def width_ws(self, ws):
-        for index, valor in enumerate([40,20,15,20,15,20,20],1):
+        for index, valor in enumerate([40,20,15,20,15,20,20,20,20,20,20,20],1):
             ws.column_dimensions[get_column_letter(index)].width = valor
 
     def valid_adcionais(self, adcionais):
@@ -351,12 +361,22 @@ class Adcional(IFielding):
         return self._lin_disp(index_recibo + 1, ws)
 
 class Competencia:
+    __metaclass__ = ABCMeta
+
     def __init__(self):
         self.nome_emp = []
         self.cnpj = []
         self.referencia = []
         self.data = []
         self.hora = []
+
+    @abstractmethod
+    def gerar_df(self) -> pd.DataFrame:
+        raise NotImplementedError("Implemente este método")
+
+    @abstractmethod
+    def add_linha(self) -> None:
+        raise NotImplementedError("Implemente este método")
 
     def to_string(self):
         return self.titulo
@@ -415,15 +435,89 @@ class Reinf(Competencia):
     def __init__(self):
         super().__init__()
         self.num_dom = []
-        self.situacao = []
+
+        self.evento_1000 = []
+        self.evento_2010 = []
+        self.evento_2099 = []
+        self.evento_4010 = []
+        self.evento_4020 = []
+        self.evento_4099 = []
+
+        self.eventos = {
+            'R-1000': self.evento_1000,
+            'R-2010': self.evento_2010,
+            'R-2099': self.evento_2099,
+            'R-4010': self.evento_4010,
+            'R-4020': self.evento_4020,
+            'R-4099': self.evento_4099,
+        }
+
+        self.colunas = {
+            'Nome Empresa': self.nome_emp,
+            'CNPJ': self.cnpj, 
+            'Num. Domínio': self.num_dom,
+            'Referência': self.referencia,
+            'Evento 1000': self.evento_1000,
+            'Evento 2010': self.evento_2010,
+            'Evento 2099': self.evento_2099,
+            'Evento 4010': self.evento_4010,
+            'Evento 4020': self.evento_4020,
+            'Evento 4099': self.evento_4099, 
+            'Data Entrega': self.data,
+            'Hora Entrega': self.hora,
+        }
         self.titulo = 'EFD REINF'
         self.margem_erro = 5
 
     def add_linha(self, arquivo):
-        arquivo = tb.read_pdf(arquivo, pages=1, stream=True,\
+        tipo = arquivo[len(arquivo) -3 :].lower()
+        if  tipo == 'pdf':
+            self.exec_pdf(arquivo)
+        elif tipo == 'lsx':
+            self.exec_excel(arquivo)
+
+    def exec_excel(self, arquivo):
+        tabela = pd.read_excel(arquivo, skiprows= 6, usecols= [0,5,7,8,12,14], dtype= {'Inscrição':str}, na_filter=False)
+
+        tabela = tabela[tabela.Inscrição != '']
+
+        empresa_atual = ''
+        for index, row in tabela.iterrows():
+            if row[0] != empresa_atual:
+                empresa_atual = row[0]
+                for key, evento in self.eventos.items():
+                    evento.append('Não Enviado')
+
+                posic = str(row[0]).find('-')
+                ##Nome empresa
+                self.nome_emp.append(row[0][posic + 1:])
+
+                ##Num. Domínio
+                self.num_dom.append(row[0][:posic - 1])
+
+                ##CNPJ
+                s = list(row[1])
+                for i, x in {2:'.',6:'.',10:'/',15:'-'}.items():
+                    s.insert(i,x)
+                self.cnpj.append(''.join(s))
+
+                ##Ref
+                self.referencia.append(datetime.strftime(row[2], '%m/%Y'))
+
+                ##Data e Hora
+                self.data.append(row[5][:10])
+
+                self.hora.append(row[5][12:])
+
+            ##Evento
+            self.add_evento(row)
+
+    def exec_pdf(self, arquivo):
+        tabela = tb.read_pdf(arquivo, pages=1, stream=True,\
                         relative_area=True ,area=[5,0,100,100])[0]
 
-        tabela = arquivo.loc[arquivo['Unnamed: 2'] == 'R-2099 - Fechamento dos Eventos Periódicos']
+        tabela.fillna('', inplace=True)
+        tabela = tabela[tabela['Unnamed: 1'] != '']
 
         prim_linha = tabela.iloc[0,0]
 
@@ -431,18 +525,16 @@ class Reinf(Competencia):
         self.num_dom.append(prim_linha[:prim_linha.find('-')-1])
 
         ##Nome empresa
+        self.nome_emp.append(prim_linha[prim_linha.find('-')+2:])
+
         ##CNPJ
-        if isinstance(tabela.iloc[0,1], float):
-            self.filtrar_cols(tabela)
-        else:
-            self.nome_emp.append(prim_linha[prim_linha.find('-')+2:])
-            self.cnpj.append(tabela.iloc[0,1][:18])
+        self.cnpj.append(tabela.iloc[0,1][:18])
 
         ##Ref
         self.referencia.append(tabela.iloc[0,2])
 
-        ##Situação
-        self.situacao.append(tabela.iloc[0,5].replace('Sucesso','ENVIADO'))
+        for key, evento in self.eventos.items():
+            evento.append('Não Enviado')
 
         ##Data e Hora
         col_dthr = tabela.iloc[0,7][:18]
@@ -451,32 +543,21 @@ class Reinf(Competencia):
 
         self.hora.append(col_dthr[12:])
 
-    def filtrar_cols(self, tabela):
-        nome_filtrado = re.sub('[0-9./-]', '', tabela.iloc[0,0])
-        self.nome_emp.append(nome_filtrado)
-        
-        cnpj_filtrado = re.sub('[^0-9!./-]', '', \
-            tabela.iloc[0,0][len(nome_filtrado) - self.margem_erro:])
-        
-        cnpj_filtrado = cnpj_filtrado[len(cnpj_filtrado) - 18:]
+        for index, row in tabela.iterrows():
+            self.add_evento(row)
 
-        for caractere, max in {'/':1, '-':1, '.':2}.items():
-            if cnpj_filtrado.count(caractere) > max:
-                cnpj_filtrado = cnpj_filtrado[:cnpj_filtrado.find(caractere)] + \
-                    cnpj_filtrado[cnpj_filtrado.find(caractere) + 1:]
-                
-        self.cnpj.append(cnpj_filtrado)
+    def add_evento(self, row):
+        for key, evento in self.eventos.items():
+            if key in row[3] and evento[-1] == 'Não Enviado':
+                evento.pop()
+                evento.append(str(row[4]).replace('Sucesso','Enviado'))
+                continue
 
     def gerar_df(self):
-        return pd.DataFrame({
-            'Nome Empresa': self.nome_emp,
-            'CNPJ': self.cnpj, 
-            'Num. Domínio': self.num_dom,
-            'Referência': self.referencia,
-            'Situação': self.situacao, 
-            'Data Entrega': self.data,
-            'Hora Entrega': self.hora,
+        a =  pd.DataFrame({
+            key: array for key, array in self.colunas.items()
             })
+        return a
     
 class Contribuicoes(Competencia):
     def __init__(self):
@@ -738,6 +819,12 @@ class App:
         self.recibos = Recibo()
         self.matriz = Matriz()
 
+        self.ref_aviso = [
+            'na aba "Não relacionadas" por não constarem na matriz',
+            'com duplicidade. A segunda cópia foi inserida na aba "Repetidos"',
+            'com data de competência desigual ao informado. Estas foram separadadas na aba "Fora da Competência"'
+            ]
+
         self.ref = {
             'des' : Des(),
             'reinf' : Reinf(),
@@ -899,7 +986,7 @@ class App:
         for entry in ref:
             entry.config(state= estado)
         
-    def declaracao(self):
+    def declaracao(self) -> Competencia:
         itens_label = self.arqLabel.get(0,END)
         lista_declara = []
 
@@ -913,7 +1000,7 @@ class App:
 
         return primeiro_obj
     
-    def declaracao_valid(self, valor):
+    def declaracao_valid(self, valor) -> Competencia:
         if self.declaracaoEntry.get() != 'Escolha aqui':
             for key, obj in self.ref.items():
                 if key in self.declaracaoEntry.get().lower():
@@ -936,15 +1023,9 @@ class App:
         return nome_arq  
 
     def avisar_adcionais(self, adcionais):
-        ref = [
-            'na aba "Não relacionadas" por não constarem na matriz',
-            'com duplicidade. A segunda cópia foi inserida na aba "Repetidos"',
-            'com data de competência desigual ao informado. Estas foram separadadas na aba "Fora da Competência"'
-            ]
-
         for index, adc in enumerate(adcionais):
             if adc.qnt_data() != 0:
-                messagebox.showinfo(title='Aviso', message= f'{adc.qnt_data()} empresas foram inseridas {ref[index]}') 
+                messagebox.showinfo(title='Aviso', message= f'{adc.qnt_data()} empresas foram inseridas {self.ref_aviso[index]}') 
 
     def _validar_compe(self):
         if self.valIncrement.get() == False:
@@ -953,7 +1034,7 @@ class App:
             datetime.strptime(self.dt_compe.get(), '%m/%Y')
 
     def executar(self):
-        try:
+        # try:
             if self.matriz.envio_invalido():
                 raise Exception ('Insira alguma Matriz')
             elif self.recibos.envio_invalido():
@@ -985,13 +1066,13 @@ class App:
 
             os.startfile(nome_arq+'.xlsx')
          
-        except (IndexError, TypeError):
-            messagebox.showerror(title='Aviso', message= 'Erro ao extrair o recibo, confira se a obrigação foi selecionada corretamente. Caso contrário, comunique ao desenvolvedor')
-        except KeyError:
-            messagebox.showerror(title='Aviso', message= 'Relatório ou Matriz inserido é inválido, certifique-se que inseriu o documento correto')
-        except ValueError:
-            messagebox.showerror(title='Aviso', message= 'Data de Competência inserida é inválida')
-        except Exception as error:
-            messagebox.showerror(title='Aviso', message= error)
+        # except (IndexError, TypeError):
+        #     messagebox.showerror(title='Aviso', message= 'Erro ao extrair o recibo, confira se a obrigação foi selecionada corretamente. Caso contrário, comunique ao desenvolvedor')
+        # except KeyError:
+        #     messagebox.showerror(title='Aviso', message= 'Relatório ou Matriz inserido é inválido, certifique-se que inseriu o documento correto')
+        # except ValueError:
+        #     messagebox.showerror(title='Aviso', message= 'Data de Competência inserida é inválida')
+        # except Exception as error:
+        #     messagebox.showerror(title='Aviso', message= error)
        
 App()
