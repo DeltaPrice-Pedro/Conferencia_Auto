@@ -168,7 +168,7 @@ class IDating:
                         preenchivel = False
                         repetido.add_data(row_recibo)
                     
-                    # break
+                    break
             if achado == False:
                 excluido.add_data(row_recibo)
             elif achado == True and preenchivel == True:
