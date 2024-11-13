@@ -528,6 +528,8 @@ class Reinf(Competencia):
         self.nome_emp.append(prim_linha[prim_linha.find('-')+2:])
 
         ##CNPJ
+        if tabela.iloc[0,1] == '':
+            tabela.iloc[0,1] = re.sub(r'[a-zA-Z]', '', tabela.iloc[0,0][25:]).strip()
         self.cnpj.append(tabela.iloc[0,1][:18])
 
         ##Ref
