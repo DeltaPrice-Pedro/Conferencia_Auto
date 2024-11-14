@@ -512,6 +512,14 @@ class Reinf(Competencia):
             ##Evento
             self.add_evento(row)
 
+    def filter_cnpj(self, s: str):
+        result = re.sub(r'[a-zA-Z,&]', '', unidecode(s[25:])).strip().replace(' ','')
+        for c, qnt_ideal in {'.':2,'-':1,'/':1}.items():
+            qnt_disp = result.count(c)
+            if qnt_disp > qnt_ideal:
+                result = result.replace(c,'', qnt_disp - qnt_ideal)
+        return result[len(result) - 18:]
+
     def exec_pdf(self, arquivo):
         tabela = tb.read_pdf(arquivo, pages=1, stream=True,\
                         relative_area=True ,area=[5,0,100,100])[0]
@@ -525,12 +533,13 @@ class Reinf(Competencia):
         self.num_dom.append(prim_linha[:prim_linha.find('-')-1])
 
         ##Nome empresa
-        self.nome_emp.append(prim_linha[prim_linha.find('-')+2:])
+        self.nome_emp.append(re.sub(r'[0-9-./]', '', tabela.iloc[0,0]).strip())
 
         ##CNPJ
         if tabela.iloc[0,1] == '':
-            tabela.iloc[0,1] = re.sub(r'[a-zA-Z]', '', tabela.iloc[0,0][25:]).strip()
-        self.cnpj.append(tabela.iloc[0,1][:18])
+            tabela.iloc[0,1] = self.filter_cnpj(tabela.iloc[0,0])
+
+        self.cnpj.append(tabela.iloc[0,1])
 
         ##Ref
         self.referencia.append(tabela.iloc[0,2])
