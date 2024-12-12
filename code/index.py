@@ -98,7 +98,7 @@ class Recibo(Arquivo):
         self.tipos_validos = ['pdf', 'lsx']
         self.caminho = []
 
-    def get_caminho(self):
+    def get_caminho(self) -> str:
         return self.caminho
 
     def inserir(self, label):
@@ -1045,7 +1045,7 @@ class App:
             datetime.strptime(self.dt_compe.get(), '%m/%Y')
 
     def executar(self):
-        # try:
+        try:
             if self.matriz.envio_invalido():
                 raise Exception ('Insira alguma Matriz')
             elif self.recibos.envio_invalido():
@@ -1077,13 +1077,13 @@ class App:
 
             os.startfile(nome_arq+'.xlsx')
          
-        # except (IndexError, TypeError):
-        #     messagebox.showerror(title='Aviso', message= 'Erro ao extrair o recibo, confira se a obrigação foi selecionada corretamente. Caso contrário, comunique ao desenvolvedor')
-        # except KeyError:
-        #     messagebox.showerror(title='Aviso', message= 'Relatório ou Matriz inserido é inválido, certifique-se que inseriu o documento correto')
-        # except ValueError:
-        #     messagebox.showerror(title='Aviso', message= 'Data de Competência inserida é inválida')
-        # except Exception as error:
-        #     messagebox.showerror(title='Aviso', message= error)
+        except (IndexError, TypeError):
+            messagebox.showerror(title='Aviso', message= f'Erro ao extrair o recibo "{arquivo}", confira se a obrigação foi selecionada corretamente. Caso contrário, comunique ao desenvolvedor')
+        except KeyError:
+            messagebox.showerror(title='Aviso', message= f'Relatório ou Matriz inserido é inválido, certifique-se que inseriu o documento correto')
+        except ValueError:
+            messagebox.showerror(title='Aviso', message= 'Data de Competência inserida é inválida')
+        except Exception as error:
+            messagebox.showerror(title='Aviso', message= error)
        
 App()
